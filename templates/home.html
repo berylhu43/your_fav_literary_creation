@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+  <h1>My Media Tracker</h1>
+  {% if user.is_authenticated %}
+    <p>Welcome back, {{ user.username }}!</p>
+  {% else %}
+    <p>Track the movies, shows, and books you love.</p>
+    <p><a href="{% url 'accounts:register' %}">Sign up</a> to get started.</p>
+  {% endif %}
+{% endblock %}
