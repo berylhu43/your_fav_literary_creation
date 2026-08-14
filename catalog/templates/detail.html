@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ work.title }}{% endblock %}
+
+{% block content %}
+  <h1>{{ work.title }}</h1>
+
+  <p>
+    Type: {{ work.get_media_type_display }}
+    {% if work.genres.all %}
+      · Genres:
+      {% for genre in work.genres.all %}
+        {{ genre.name }}{% if not forloop.last %}, {% endif %}
+      {% endfor %}
+    {% endif %}
+  </p>
+
+  <p>
+    Average rating:
+    {% if average %}
+      {{ average|floatformat:1 }} / 5
+    {% else %}
+      No ratings yet
+    {% endif %}
+  </p>
+
+  <h2>Reviews</h2>
+  {% for review in reviews %}
+    <div>
+      <strong>{{ review.user.username }}</strong> — {{ review.rating }}/5
+      {% if review.review_text %}
+        <p>{{ review.review_text }}</p>
+      {% endif %}
+      <small>{{ review.created_at|date:"M d, Y" }}</small>
+    </div>
+  {% empty %}
+    <p>No reviews yet. Be the first!</p>
+  {% endfor %}
+
+  <p><a href="{% url 'catalog:add_entry' %}">Add another</a></p>
+{% endblock %}
