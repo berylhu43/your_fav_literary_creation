@@ -30,10 +30,10 @@ def add_entry(request):
 
             return redirect('catalog:detail', pk=work.pk)
 
-        else:
-            form = AddEntryForm()
+    else:
+        form = AddEntryForm()
 
-        return render(request, 'catalog/add_entry.html', {'form': form})
+    return render(request, 'catalog/add_entry.html', {'form': form})
 
 
 def detail(request, pk):

@@ -1,7 +1,7 @@
 from django import forms
 from .models import Catalog, Genre
 
-class AddEntryForm(forms.form):
+class AddEntryForm(forms.Form):
     media_type = forms.ChoiceField(
         choices=Catalog.MediaType.choices,
         label='Type',
@@ -9,13 +9,13 @@ class AddEntryForm(forms.form):
 
     title = forms.CharField(
         max_length=225,
-        lable='Title',
+        label='Title',
     )
     genres = forms.ModelMultipleChoiceField(
         queryset=Genre.objects.all(),
         required=False,
         widget=forms.CheckboxSelectMultiple,
-        lable='Genre',
+        label='Genre',
     )
 
     rating = forms.IntegerField(
