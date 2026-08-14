@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block title %}Browse{% endblock %}
+
+{% block content %}
+  <h1>All works</h1>
+  <p><a href="{% url 'catalog:add_entry' %}">+ Add an entry</a></p>
+
+  {% for work in works %}
+    <div>
+      <a href="{% url 'catalog:detail' pk=work.pk %}">{{ work.title }}</a>
+      ({{ work.get_media_type_display }})
+      {% if work.avg_rating %}
+        — {{ work.avg_rating|floatformat:1 }}/5 ({{ work.review_count }} reviews)
+      {% else %}
+        — No ratings yet
+      {% endif %}
+    </div>
+  {% empty %}
+    <p>Nothing here yet. <a href="{% url 'catalog:add_entry' %}">Add the first entry!</a></p>
+  {% endfor %}
+{% endblock %}

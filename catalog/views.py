@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.db.models import Avg
+from django.db.models import Avg, Count
 from .forms import AddEntryForm
 from .services import get_or_create_work
 from .models import Catalog
@@ -48,3 +48,11 @@ def detail(request, pk):
     }
 
     return render(request, 'catalog/detail.html', context)
+
+
+def catalog_list(request):
+    works = Catalog.objects.annotate(
+        avg_rating=Avg('reviews__rating'),
+        review_count=Count('reviews'),
+    )
+    return render(request, 'catalog/list.html', {'works': works})
