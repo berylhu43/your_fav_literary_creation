@@ -166,7 +166,7 @@ erDiagram
         int id PK
         int user_id FK
         int catalog_id FK
-        int rating "1-5"
+        decimal rating "0-5, 0.5 steps"
         text review_text "optional"
         datetime created_at
     }
@@ -215,7 +215,7 @@ erDiagram
 - `catalog` — FK to `'catalog.Catalog'` (string form, avoids circular imports).
 - `on_delete=CASCADE` on both — a review has no meaning without its user or its work, so it is deleted alongside either.
 - `related_name='reviews'` on both — enables reverse queries: `user.reviews.all()`, `catalog.reviews.all()` (the latter powers average-rating calculation). The same name on two FKs does not clash because they attach to different models.
-- `rating` — `PositiveSmallIntegerField` with `MinValueValidator(1)` / `MaxValueValidator(5)`.
+- `rating` — `DecimalField(max_digits=2, decimal_places=1)`, range 0–5 enforced by `MinValueValidator(0)` / `MaxValueValidator(5)`, plus a custom `validate_half_step` validator restricting values to 0.5 increments. `DecimalField` (not `FloatField`) is used so the value is stored exactly, without floating-point rounding error. The form exposes it as a dropdown of half-star choices (0, 0.5, … 5.0) rather than a free-text number, so invalid values can't be entered at the source.
 - `review_text` — `TextField(blank=True)`. Text fields use `blank` only (no `null`), so "empty" has one representation (`''`).
 
 **`null` vs `blank` rule of thumb:** text fields that are optional use `blank=True` only; non-text fields (numbers, dates) that are optional use both `null=True` and `blank=True`.
@@ -329,11 +329,12 @@ Everything here depends on the rich data from Stage 2; none of it is possible on
 | `catalog` service layer (`get_or_create_work`) | ✅ Implemented |
 | Add-entry flow (create work + genres + upsert review) | ✅ Implemented |
 | Work detail page (work + average rating + reviews) | ✅ Implemented |
-| Public catalog list page (all works, at `/catalog/`) | ✅ In progress |
-| Personal "my records" list (at `/reviews/`) | ✅ Not yet |
-| Edit my review (rating + text) | ✅ Not yet |
-| Delete my review | ✅ Not yet |
-| Search my records | ✅ Not yet |
+| Public catalog list page (all works, at `/catalog/`) | ✅ Implemented |
+| Personal "my records" list (at `/reviews/`) | ✅ Implemented |
+| Edit my review (rating + text) | ✅ Implemented |
+| Delete my review | ✅ Implemented |
+| Search my records | ✅ Implemented |
+| Half-star rating (0–5, 0.5 steps) | ✅ Implemented |
 | `Artist` / `Credit` | 📐 Designed, not implemented |
 | External API integration (TMDB / Open Library) — *Stage 2* | 📐 Designed |
 | Discovery filters (genre / cast / rating) — *Stage 3* | 💭 Depends on Stage 2 |

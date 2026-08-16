@@ -1,5 +1,8 @@
 from django import forms
 from .models import Catalog, Genre
+from decimal import Decimal
+
+RATING_CHOICES = [(Decimal(x) / 2, str(Decimal(x) / 2)) for x in range(0, 11)]
 
 class AddEntryForm(forms.Form):
     media_type = forms.ChoiceField(
@@ -18,10 +21,9 @@ class AddEntryForm(forms.Form):
         label='Genre',
     )
 
-    rating = forms.IntegerField(
-        min_value=0,
-        max_value=5,
-        label='Rating (0-5),'
+    rating = forms.TypedChoiceField(
+        choices=RATING_CHOICES,
+        coerce=Decimal,
     )
 
     review_text = forms.CharField(
