@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete review{% endblock %}
+
+{% block content %}
+  <h1>Delete review?</h1>
+
+  <p>Are you sure you want to delete your review of
+     <strong>"{{ review.catalog.title }}"</strong> (rating: {{ review.rating }}/5)?
+     This can't be undone.</p>
+
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit">Yes, delete</button>
+    <a href="{% url 'reviews:my_records' %}">Cancel</a>
+  </form>
+{% endblock %}

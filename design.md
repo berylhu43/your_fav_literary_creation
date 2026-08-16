@@ -329,11 +329,11 @@ Everything here depends on the rich data from Stage 2; none of it is possible on
 | `catalog` service layer (`get_or_create_work`) | ✅ Implemented |
 | Add-entry flow (create work + genres + upsert review) | ✅ Implemented |
 | Work detail page (work + average rating + reviews) | ✅ Implemented |
-| Public catalog list page (all works, at `/catalog/`) | 🚧 In progress |
-| Personal "my records" list (at `/reviews/`) | ⬜ Not yet |
-| Edit my review (rating + text) | ⬜ Not yet |
-| Delete my review | ⬜ Not yet |
-| Search my records | ⬜ Not yet |
+| Public catalog list page (all works, at `/catalog/`) | ✅ In progress |
+| Personal "my records" list (at `/reviews/`) | ✅ Not yet |
+| Edit my review (rating + text) | ✅ Not yet |
+| Delete my review | ✅ Not yet |
+| Search my records | ✅ Not yet |
 | `Artist` / `Credit` | 📐 Designed, not implemented |
 | External API integration (TMDB / Open Library) — *Stage 2* | 📐 Designed |
 | Discovery filters (genre / cast / rating) — *Stage 3* | 💭 Depends on Stage 2 |

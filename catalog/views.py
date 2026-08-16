@@ -1,10 +1,10 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.db.models import Avg, Count
+from reviews.models import Review
 from .forms import AddEntryForm
 from .services import get_or_create_work
 from .models import Catalog
-from review.models import Review
 
 @login_required
 def add_entry(request):
@@ -55,4 +55,9 @@ def catalog_list(request):
         avg_rating=Avg('reviews__rating'),
         review_count=Count('reviews'),
     )
-    return render(request, 'catalog/list.html', {'works': works})
+
+    query = request.GET.get('q', '')
+    if query:
+        works = works.filter(title__icontains=query)
+
+    return render(request, 'catalog/list.html', {'works': works, 'query':query})
