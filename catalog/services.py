@@ -1,4 +1,4 @@
-from .models import Catalog
+from .models import Catalog, Genre
 from . import clients
 
 def get_or_create_work(*, media_type, tmdb_id):
@@ -37,4 +37,12 @@ def get_or_create_work(*, media_type, tmdb_id):
         source=Catalog.Source.TMDB,
         external_id=str(tmdb_id),
     )
+
+    # genre reflection from TMDB api
+    genre_objects = []
+    for g in data.get('genres', []):
+        genre,_=Genre.objects.get_or_create(name=g['name'])
+        genre_objects.append(genre)
+    work.genres.set(genre_objects)
+    
     return work
