@@ -2,7 +2,6 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.db.models import Avg, Count
 from reviews.models import Review
-from reviews.forms import ReviewForm
 from .forms import AddEntryForm
 from .services import get_or_create_work
 from .models import Catalog
@@ -77,31 +76,6 @@ def search_works(request):
     if query:
         results = search_movies(query)
     return render(request, 'catalog/search.html', {'query': query, 'results':results})
-
-@login_required
-def add_movie(request, tmdb_id):
-    if request.method == 'POST':
-        form = ReviewForm(request.POST)
-        if form.is_valid():
-            work = get_or_create_work(media_type='movie', tmdb_id=tmdb_id)
-            if work is None:
-                return render(request, 'catalog/add_movie.html', {
-                    'form':form,
-                    'error': 'Could not fetch this movie. Try another one.'
-                })
-            Review.objects.update_or_create(
-                user=request.user,
-                catalog=work,
-                defaults={
-                    'rating': form.cleaned_data['rating'],
-                    'review_text': form.cleaned_data['review_text'],
-                },
-            )
-            return redirect('catalog:detail', pk=work.pk)
-    else:
-        form = ReviewForm()
-
-    return render(request, 'catalog/add_movie.html', {'form':form})
 
 
 def select_movie(request, tmdb_id):

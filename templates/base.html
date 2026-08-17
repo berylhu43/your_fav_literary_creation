@@ -18,6 +18,7 @@
                 <button type="submit">Log out</button>
             </form>
         {% else %}
+            <a href="{% url 'catalog:list' %}">All works</a>
             <a href="{% url 'accounts:login' %}">Log in</a>
             <a href="{% url 'accounts:register' %}">Sign up</a>
         {% endif %}

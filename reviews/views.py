@@ -1,7 +1,9 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from catalog.models import Catalog
 from .models import Review
 from .forms import ReviewForm
+from .services import upsert_review
 
 @login_required
 def my_records(request):
@@ -31,7 +33,7 @@ def delete_record(request, pk):
 
     return render(request, 'reviews/delete_record.html', {'review': review})
 
-
+@login_required
 def change_record(request, pk):
     review = get_object_or_404(Review, pk=pk, user=request.user)
 
@@ -44,3 +46,23 @@ def change_record(request, pk):
         form = ReviewForm(instance=review)
 
     return render(request, 'reviews/change_record.html', {'form':form, 'review': review})
+
+
+@login_required
+def add_record(request, pk):
+    work = get_object_or_404(Catalog, pk=pk)
+
+    if request.method == 'POST':
+        form = ReviewForm(request.POST)
+        if form.is_valid():
+            upsert_review(
+                user=request.user,
+                catalog=work,
+                rating=form.cleaned_data['rating'],
+                review_text=form.cleaned_data['review_text'],
+            )
+            return redirect('catalog:detail', pk=work.pk)
+    else:
+        form = ReviewForm()
+
+    return render(request, 'catalog/add_movie.html', {'form':form})

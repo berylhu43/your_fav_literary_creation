@@ -22,6 +22,6 @@
       <small>{{ review.created_at|date:"M d, Y" }}</small>
     </div>
   {% empty %}
-    <p>You haven't logged anything yet. <a href="{% url 'catalog:add_entry' %}">Add your first entry!</a></p>
+    <p>You haven't logged anything yet. <a href="{% url 'catalog:search' %}">Add your first entry!</a></p>
   {% endfor %}
 {% endblock %}

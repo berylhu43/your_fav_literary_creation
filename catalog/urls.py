@@ -8,6 +8,5 @@ urlpatterns = [
     path('add/', views.add_entry, name='add_entry'),
     path('<int:pk>/', views.detail, name='detail'),
     path('search/', views.search_works, name='search'),
-    path('add/<int:tmdb_id>/', views.add_movie, name='add_movie'),
     path('select/<int:tmdb_id>/', views.select_movie, name='select_movie'),
 ]
