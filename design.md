@@ -8,7 +8,9 @@
 
 Media Tracker is a Django web application that lets users record the movies, TV shows, and books they have consumed, rate them, and write reviews. A later phase adds LLM-powered "for you" recommendations driven by each user's rating and review history.
 
-Product positioning: public + personal, side by side. The app has two complementary sides. The personal side is each user's own media diary — the works they have logged, their ratings and reviews, which they can add, edit, delete, and search. The public side is a shared discovery surface — browsing all works and seeing how everyone has rated them. Both are first-class; neither is an afterthought. This dual positioning is why the data model separates the shared, objective Catalog from the personal, subjective Review from the very start (see §8.2).
+**Product positioning: public + personal, side by side.** The app has two complementary sides. The *personal* side is each user's own media diary — the works they have logged, their ratings and reviews, which they can add, edit, delete, and search. The *public* side is a shared discovery surface — browsing all works and seeing how everyone has rated them. Both are first-class; neither is an afterthought. This dual positioning is why the data model separates the shared, objective `Catalog` from the personal, subjective `Review` from the very start (see §8.2).
+
+The project is built primarily as a hands-on exercise to consolidate backend knowledge (Django ORM, authentication, request lifecycle, layered architecture), while deliberately being engineered to an **industrial-grade** standard rather than a throwaway tutorial. The guiding principle throughout is **design for evolution**: get the core working first, but make no decision that would require a rewrite when later features arrive.
 
 ### Goals
 
@@ -71,39 +73,25 @@ A deliberate three-layer separation, mirroring the MVC pattern also found in Spr
 - **Services** contain business rules and know nothing about HTTP. They can be called from a web view, a future REST endpoint, a management command, or a test — which makes them reusable and testable.
 - **Models** describe the database schema and expose data access via managers (`.objects`).
 
-This separation is what makes the Stage 1 → Stage 2 transition cheap: the switch to external APIs is confined to a single service function (see §7).
+This separation is what makes the Stage 1 → Stage 2 transition cheap: the switch to external APIs is confined to a single service function (see §8).
 
 ---
 
-4. Information Architecture (Page Responsibilities)
-
-Each top-level page owns a distinct job. Defining this upfront keeps features from landing in the wrong place as the app grows, and clarifies which stage each page's full form belongs to.
-
-Page	Job	Perspective	Full form arrives in
-Home (/)	LLM-driven recommendations — a "for you" feed and/or a chat box where the user asks for tailored suggestions	Personalized	Stage 3
-Catalog home (/catalog/)	Public discovery — browse all works, eventually filter/sort by genre, cast, rating	Public	Filtering in Stage 3 (depends on rich API data)
-Work detail (/catalog/<id>/)	A single work + everyone's ratings and reviews (public), plus the current user's own record	Public + personal	Exists (Stage 1); enriched in Stage 2
-My records (/reviews/)	The user's personal diary — everything they've logged, with add / edit / delete / search	Personal	Being built now (Stage 1)
-
-Why two list pages (/catalog/ vs. /reviews/). They look similar but differ in subject: /catalog/ lists works (public, all of them); /reviews/ lists the current user's records (personal, filtered to request.user). The public list's subject is Catalog; the personal list's subject is Review. Keeping them as separate pages in separate apps keeps each responsibility clean.
-
-Dependency ordering baked into this table. The advanced public features (filtering discovery by cast/genre/rating) and the LLM home page both require rich, structured data — which only arrives with the external API. So they are correctly sequenced after Stage 2, not before. You cannot filter by actor until actors exist in the data.
-
 ## 4. Information Architecture (Page Responsibilities)
- 
+
 Each top-level page owns a distinct job. Defining this upfront keeps features from landing in the wrong place as the app grows, and clarifies which stage each page's full form belongs to.
- 
+
 | Page | Job | Perspective | Full form arrives in |
 |---|---|---|---|
 | **Home** (`/`) | LLM-driven recommendations — a "for you" feed and/or a chat box where the user asks for tailored suggestions | Personalized | Stage 3 |
-| **Catalog home** (`/catalog/`) | Public discovery — browse all works, eventually filter/sort by genre, cast, rating | Public | Filtering in Stage 3 (depends on rich API data) |
-| **Work detail** (`/catalog/<id>/`) | A single work + everyone's ratings and reviews (public), plus the current user's own record | Public + personal | Exists (Stage 1); enriched in Stage 2 |
+| **Catalog home** (`/catalog/`) | Public discovery — search (now hits TMDB to add works), eventually a popular / top-rated feed | Public | Discovery feed + filters in Stage 3 (depends on rich API data) |
+| **Work detail** (`/catalog/<id>/`) | A single work + everyone's ratings and reviews (public), and the operation hub for the current user's own record (add / edit / delete) | Public + personal | Detail + operation hub done; data enriched as more of Stage 2 lands |
 | **My records** (`/reviews/`) | The user's personal diary — everything they've logged, with add / edit / delete / search | Personal | Being built now (Stage 1) |
- 
+
 **Why two list pages (`/catalog/` vs. `/reviews/`).** They look similar but differ in subject: `/catalog/` lists *works* (public, all of them); `/reviews/` lists *the current user's records* (personal, filtered to `request.user`). The public list's subject is `Catalog`; the personal list's subject is `Review`. Keeping them as separate pages in separate apps keeps each responsibility clean.
- 
+
 **Dependency ordering baked into this table.** The advanced public features (filtering discovery by cast/genre/rating) and the LLM home page both require rich, structured data — which only arrives with the external API. So they are correctly sequenced *after* Stage 2, not before. You cannot filter by actor until actors exist in the data.
- 
+
 ---
 
 ## 5. Application Structure
@@ -182,7 +170,7 @@ erDiagram
     }
 ```
 
-*Note: `USER` is Django's built-in `auth.User` — shown for context but not defined by us. `ARTIST` and `CREDIT` are designed but not implemented in Stage 1 (see §7).*
+*Note: `USER` is Django's built-in `auth.User` — shown for context but not defined by us. `ARTIST` and `CREDIT` are designed but not implemented in Stage 1 (see §8).*
 
 ### Tables
 
@@ -250,7 +238,7 @@ De-duplication in Stage 2 relies on the external library's unique ID, not on tit
 
 The artist ↔ work relationship is many-to-many (a director has many films; a film has many people), correctly bridged by a `Credit` table with a `role`. This is *designed* upfront (it lives in the ERD), but *implemented* later. **Rule applied:** unlike `external_id`, adding these tables later is a pure additive operation (two brand-new tables alongside `Catalog`, no changes to existing structure), so it is cheap to defer. In Stage 1, `creator` (a plain text field) suffices. Stage 2's API returns cast/crew data anyway, so building artists then is efficient.
 
-*Note the consistent yardstick behind 7.5 and 7.6: add early only what is expensive to add later.*
+*Note the consistent yardstick behind 8.5 and 8.6: add early only what is expensive to add later.*
 
 ### 8.7 Isolate data-fetching in a service layer (`get_or_create_work()`)
 
@@ -279,46 +267,64 @@ Initial genre data is loaded through a **data migration** (`RunPython`), not ent
 
 ### 8.12 De-duplication key: `title` + `media_type` now, `external_id` later
 
-`get_or_create` conditions must be required, stable, always-present fields. `release_year` is nullable, so putting it in the query condition would break de-duplication (a work with a year and the same work without one wouldn't match, creating duplicates). Stage 1 therefore de-duplicates on `title` + `media_type` (both required); precise version-level distinction is deferred to Stage 2's `external_id`, where it is solved correctly.
+`get_or_create` conditions must be required, stable, always-present fields. `release_year` is nullable, so putting it in the query condition would break de-duplication (a work with a year and the same work without one wouldn't match, creating duplicates). Stage 1 therefore de-duplicates on `title` + `media_type` (both required); precise version-level distinction is deferred to Stage 2's `external_id`, where it is solved correctly. *(Stage 2 status: now implemented — de-duplication keys on `source` + `external_id`.)*
+
+### 8.13 Work detail page as the operation hub; browse public, act logged-in
+
+The work detail page is the single place a user acts on a work. Instead of scattering add/edit/delete controls across list pages, the detail page shows, based on the viewer's state: not logged in → a prompt to log in; logged in but hasn't reviewed → "Add my review"; already reviewed → their rating plus Edit/Delete. The "my records" list is therefore read-only navigation — clicking a title opens the detail page, where the actions live. This keeps each action's view single-purpose (add / change / delete stay distinct) and gives users one predictable place to manage a work.
+
+Two supporting decisions:
+- **Public browse, authenticated action.** Search, browse, and viewing a work's detail need no login (`@login_required` is absent from those views); only creating/editing/deleting a review requires it. This matches the public + personal positioning and lowers the barrier to explore before signing up.
+- **Select persists first, then routes to detail.** Selecting a movie from TMDB search first calls `get_or_create_work` to persist (cache) the `Catalog` row, then redirects to that work's detail page by `pk`. Because the work is guaranteed to exist by then, the downstream "add my review" view takes the work's `pk` (not a TMDB id) and does not re-fetch — TMDB fetching lives only in the select step, keeping the rating step purely internal.
 
 ---
 
 ## 9. Phased Delivery
- 
+
 The core strategy: **build Stage 1 to look like Stage 2's shape**, so the transition changes as little code as possible. The user's primary action in both stages is *writing a review*; the catalog record is a by-product.
- 
+
 ### Stage 1 — Working core (manual data) — *complete*
- 
+
 - **Data source:** manual entry.
 - **`accounts`:** registration, login, logout (built-in auth + custom registration view + templates).
 - **`catalog` — add entry:** one form collects both work info (media_type, title, genres) and review info (rating, review_text). On submit, the view calls `get_or_create_work()` to create/reuse the `Catalog` row, associates genres, then upserts a `Review`.
 - **`catalog` — detail:** shows a work, its average rating (reverse query + `Avg` aggregation), and all its reviews.
 - **Known limitation:** data quality is imperfect (possible duplicate works from manual entry), accepted in exchange for full command of Django fundamentals.
+
 The personal side (my records: list, edit, delete, search) is being completed within Stage 1. The public discovery side has its foundation in Stage 1 (the work detail page) but its richer form depends on later stages, as the roadmap below reflects.
- 
-### Stage 2 — External API integration — *future*
- 
-- Change **only** `get_or_create_work()` internals to check local first, then call TMDB / Open Library.
-- De-duplicate via `external_id`; set `source` to `tmdb` / `openlibrary`.
-- Views, templates, review logic, and models remain unchanged — the seam holds.
-- Implement `Artist` / `Credit` (cast/crew arrives with the API data).
-- Genres may map onto the API's standardized categories.
-- **Outcome:** `Catalog` now holds rich, structured, standardized data (cast, genres, covers, years), which unlocks Stage 3.
+
+### Stage 2 — External API integration — *in progress*
+
+**Done (TMDB movies):**
+- `catalog/clients.py` — a dedicated API-client layer wrapping TMDB calls (`search_movies`, `get_movie_details`), with `timeout`, `raise_for_status`, and `try/except` returning a safe fallback so a failed API call degrades gracefully instead of crashing the page.
+- `get_or_create_work()` rewritten: check local `Catalog` by `source` + `external_id` first, reuse if found; otherwise fetch from TMDB, map fields, and store. The seam held — views/templates/review logic did not change shape, only the function's internals and its parameter (now a TMDB id).
+- De-duplication now uses `external_id` (+ `source`), not title matching — the predicted payoff of the reserved fields.
+- API key handled via environment variables (`.env` + `python-dotenv`), `.env` git-ignored, `.env.example` committed as a template.
+- Search → select → detail → rate flow wired up (see §8.13).
+
+**Remaining:**
+- TV shows (`/search/tv`, `/tv/{id}`; note different field names — `name`, `first_air_date`).
+- Books (a separate API — Open Library / Google Books; different structure entirely).
+- Genre mapping (TMDB returns genre ids/objects → map onto the `Genre` table).
+- `Artist` / `Credit` (cast/crew arrives with the API data).
+- **Outcome once complete:** `Catalog` holds rich, structured, standardized data (cast, genres, covers, years), which unlocks Stage 3.
+
 ### Stage 3 — Discovery and recommendations — *future*
- 
+
 Everything here depends on the rich data from Stage 2; none of it is possible on manually entered data.
- 
+
 - **Catalog home as a discovery surface:** filter and sort all works by genre, cast, rating, etc.
 - **Home page as the LLM surface:** a "for you" recommendation feed and/or a chat box where the user describes what they want ("something like *Blade Runner* but slower") and gets tailored recommendations.
 - **`recommendations` app:** reads a user's high-rated works and review text, builds a prompt, calls the LLM, returns suggestions. No special upfront architecture required — it consumes the data the earlier stages produced.
+
 ### Even later / optional
- 
+
 - Possible React frontend (backend grows a REST API layer).
 
 ---
 
 ## 10. Implementation Status
- 
+
 | Item | Status |
 |---|---|
 | Authentication (built-in `auth.User`) | ✅ Implemented |
@@ -330,19 +336,28 @@ Everything here depends on the rich data from Stage 2; none of it is possible on
 | Add-entry flow (create work + genres + upsert review) | ✅ Implemented |
 | Work detail page (work + average rating + reviews) | ✅ Implemented |
 | Public catalog list page (all works, at `/catalog/`) | ✅ Implemented |
+| Public catalog search (`?q=` title match) | ✅ Implemented |
 | Personal "my records" list (at `/reviews/`) | ✅ Implemented |
 | Edit my review (rating + text) | ✅ Implemented |
-| Delete my review | ✅ Implemented |
-| Search my records | ✅ Implemented |
-| Half-star rating (0–5, 0.5 steps) | ✅ Implemented |
+| Delete my review (POST + confirm page) | ✅ Implemented |
+| Search my records (`?q=` title match) | ✅ Implemented |
+| Half-star rating (0–5, 0.5 steps, `DecimalField`) | ✅ Implemented |
+| Detail page as operation hub (add/edit/delete by viewer state) | ✅ Implemented |
+| `upsert_review` service (reviews) | ✅ Implemented |
+| TMDB API client layer (`catalog/clients.py`) | ✅ Implemented |
+| TMDB movie search → select → detail → rate flow | ✅ Implemented |
+| `external_id` + `source` de-duplication (movies) | ✅ Implemented |
 | `Artist` / `Credit` | 📐 Designed, not implemented |
-| External API integration (TMDB / Open Library) — *Stage 2* | 📐 Designed |
+| External API — TV shows (`/search/tv`) | ⬜ Not yet (Stage 2) |
+| External API — books (Open Library) | ⬜ Not yet (Stage 2) |
+| Genre mapping from API | ⬜ Not yet (Stage 2) |
+| Catalog home as discovery surface (popular / top-rated) | ⬜ Not yet (Stage 3) |
 | Discovery filters (genre / cast / rating) — *Stage 3* | 💭 Depends on Stage 2 |
 | LLM recommendations / chat (home page) — *Stage 3* | 💭 Depends on Stage 2 |
 | React frontend | 💭 Possible future |
- 
+
 *Legend: ✅ implemented · 🚧 in progress · ⬜ planned, not started · 📐 designed, not implemented · 💭 future / blocked on earlier stage*
- 
+
 ---
 
 ## 11. Engineering Principles

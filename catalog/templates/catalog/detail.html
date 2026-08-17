@@ -5,6 +5,16 @@
 {% block content %}
   <h1>{{ work.title }}</h1>
 
+  {% if work.cover_url %}
+    <img src="{{ work.cover_url }}" alt="{{ work.title }}" style="max-width:200px">
+  {% endif %}
+
+  <p>
+  {% if work.description %}
+    {{work.description}}
+  {% endif %}
+  </p>
+
   <p>
     Type: {{ work.get_media_type_display }}
     {% if work.genres.all %}
@@ -23,6 +33,23 @@
       No ratings yet
     {% endif %}
   </p>
+  <h2>Your review</h2>
+  {% if user.is_authenticated %}
+    {% if my_review %}
+      <p>Your rating: {{ my_review.rating }}/5</p>
+      <p>
+        Your review: {{ my_review.review_text}}
+        <small>{{ my_review.created_at|date:"M d, Y" }}</small>
+      </p>
+      <a href="{% url 'reviews:change_record' pk=my_review.pk %}">Edit</a>
+      <a href="{% url 'reviews:delete_record' pk=my_review.pk %}">Delete</a>
+    {% else %}
+      <a href="{% url 'reviews:add_record' pk=work.pk %}">Add my review</a>
+    {% endif %}
+  {% else %}
+    <p><a href="{% url 'accounts:login' %}">Log in</a> to add your review.</p>
+  {% endif %}
+
 
   <h2>Other reviews</h2>
   {% for review in reviews %}
@@ -34,18 +61,5 @@
   {% empty %}
     <p>No other reviews yet.</p>
   {% endfor %}
-
-  {% if user.is_authenticated %}
-    {% if my_review %}
-      <p>Your rating: {{ my_review.rating }}/5</p>
-      <p>Your review: {{ my_review.review_text}}</p>
-      <a href="{% url 'reviews:change_record' pk=my_review.pk %}">Edit</a>
-      <a href="{% url 'reviews:delete_record' pk=my_review.pk %}">Delete</a>
-    {% else %}
-      <a href="{% url 'reviews:add_record' pk=work.pk %}">Add my review</a>
-    {% endif %}
-  {% else %}
-    <p><a href="{% url 'accounts:login' %}">Log in</a> to add your review.</p>
-  {% endif %}
 
 {% endblock %}
