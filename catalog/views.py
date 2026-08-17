@@ -5,7 +5,7 @@ from reviews.models import Review
 from .forms import AddEntryForm
 from .services import get_or_create_work
 from .models import Catalog
-from .clients import search_movies
+from .clients import search_movies, search_tv
 
 @login_required
 def add_entry(request):
@@ -72,14 +72,22 @@ def catalog_list(request):
 
 def search_works(request):
     query = request.GET.get('q', '')
+    media_type = request.GET.get('media_type', 'movie')
     results = []
     if query:
-        results = search_movies(query)
-    return render(request, 'catalog/search.html', {'query': query, 'results':results})
+        if media_type == 'tv':
+            results = search_tv(query)
+        else:
+            results = search_movies(query)
+    return render(request, 'catalog/search.html', {
+        'query': query, 
+        'media_type': media_type,
+        'results':results
+        })
 
 
-def select_movie(request, tmdb_id):
-    work = get_or_create_work(media_type='movie', tmdb_id=tmdb_id)
+def select_work(request, tmdb_id, media_type):
+    work = get_or_create_work(media_type=media_type, tmdb_id=tmdb_id)
     if work is None:
         return render(request, 'catalog/search.html', {
             'error': 'Could not fetch this movie. Try another one.',

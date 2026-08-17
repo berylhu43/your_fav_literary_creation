@@ -2,21 +2,25 @@
 {% block title %}Add a movie{% endblock %}
 
 {% block content %}
-  <h1>Search for a movie</h1>
+  <h1>Search for a {{media_type}}</h1>
 
   <form method="get">
-    <input type="text" name="q" value="{{ query }}" placeholder="Search TMDB...">
+    <input type="text" name="q" value="{{ query }}" placeholder="Search ...">
+    <select name="media_type">
+      <option value="movie" {% if media_type == 'movie' %}selected{% endif %}>Movie</option>
+      <option value="tv" {% if media_type == 'tv' %}selected{% endif %}>TV</option>
+    </select>
     <button type="submit">Search</button>
   </form>
 
-  {% for movie in results %}
+  {% for item in results %}
     <div>
-      {% if movie.poster_path %}
-        <img src="https://image.tmdb.org/t/p/w92{{ movie.poster_path }}" alt="">
+      {% if item.poster_path %}
+        <img src="https://image.tmdb.org/t/p/w92{{ item.poster_path }}" alt="">
       {% endif %}
-      <strong>{{ movie.title }}</strong>
-      ({{ movie.release_date|slice:":4" }})
-      <a href="{% url 'catalog:select_movie' tmdb_id=movie.id %}">Select</a>
+      <strong>{% if media_type == 'tv' %}{{ item.name }}{% else %}{{ item.title }}{% endif %}</strong>
+      ({% if media_type == 'tv' %}{{ item.first_air_date|slice:":4" }}{% else %}{{ item.release_date|slice:":4" }}{% endif %})
+      <a href="{% url 'catalog:select_work' tmdb_id=item.id media_type=media_type %}">Select</a>
     </div>
   {% empty %}
     {% if query %}

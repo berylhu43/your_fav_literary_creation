@@ -9,11 +9,7 @@
     <button type="submit">Search</button>
   </form>
 
-  <form method="get" action="{% url 'catalog:search' %}">
-    <input type="text" name="q" placeholder="Search all works...">
-    <button type="submit">Search</button>
-  </form>
-
+  <p>
   {% for review in reviews %}
     <div style="display:flex; gap:12px; margin-bottom:16px">
       {% if review.catalog.cover_url %}
@@ -28,4 +24,5 @@
   {% empty %}
     <p>You haven't logged anything yet.</p>
   {% endfor %}
+  </p>
 {% endblock %}

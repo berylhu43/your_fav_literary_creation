@@ -6,6 +6,10 @@
   <h1>All works</h1>
     <form method="get" action="{% url 'catalog:search' %}">
       <input type="text" name="q" placeholder="Search all works...">
+      <select name="'media_type">
+        <option value="movie">Movie</option>
+        <option value="tv">TV</option>
+      </select>
       <button type="submit">Search</button>
     </form>
 
