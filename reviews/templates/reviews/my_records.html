@@ -9,15 +9,13 @@
     <button type="submit">Search</button>
   </form>
 
-  <p><a href="{% url 'catalog:add_entry' %}">+ Add an entry</a></p>
+  <p><a href="{% url 'catalog:search' %}">+ Add an entry</a></p>
 
   {% for review in reviews %}
     <div>
       <a href="{% url 'catalog:detail' pk=review.catalog.pk %}">{{ review.catalog.title }}</a>
       ({{ review.catalog.get_media_type_display }})
       — my rating: {{ review.rating }}/5 
-      <a href="{% url 'reviews:change_record' pk=review.pk %}">Edit</a>
-      <a href="{% url 'reviews:delete_record' pk=review.pk %}">Delete</a>
       {% if review.review_text %}
         <p>{{ review.review_text }}</p>
       {% endif %}

@@ -24,18 +24,28 @@
     {% endif %}
   </p>
 
-  <h2>Reviews</h2>
+  <h2>Other reviews</h2>
   {% for review in reviews %}
     <div>
       <strong>{{ review.user.username }}</strong> — {{ review.rating }}/5
-      {% if review.review_text %}
-        <p>{{ review.review_text }}</p>
-      {% endif %}
+      {% if review.review_text %}<p>{{ review.review_text }}</p>{% endif %}
       <small>{{ review.created_at|date:"M d, Y" }}</small>
     </div>
   {% empty %}
-    <p>No reviews yet. Be the first!</p>
+    <p>No other reviews yet.</p>
   {% endfor %}
 
-  <p><a href="{% url 'catalog:add_entry' %}">Add another</a></p>
+  {% if user.is_authenticated %}
+    {% if my_review %}
+      <p>Your rating: {{ my_review.rating }}/5</p>
+      <p>Your review: {{ my_review.review_text}}</p>
+      <a href="{% url 'reviews:change_record' pk=my_review.pk %}">Edit</a>
+      <a href="{% url 'reviews:delete_record' pk=my_review.pk %}">Delete</a>
+    {% else %}
+      <a href="{% url 'catalog:add_movie' tmdb_id=work.external_id %}">Add my review</a>
+    {% endif %}
+  {% else %}
+    <p><a href="{% url 'accounts:login' %}">Log in</a> to add your review.</p>
+  {% endif %}
+
 {% endblock %}

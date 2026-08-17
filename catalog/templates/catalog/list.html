@@ -4,12 +4,11 @@
 
 {% block content %}
   <h1>All works</h1>
-    <form method="get">
-      <input type="text" name="q" value="{{ query }}" placeholder="Search all works...">
+    <form method="get" action="{% url 'catalog:search' %}">
+      <input type="text" name="q" placeholder="Search all works...">
       <button type="submit">Search</button>
     </form>
 
-  <p><a href="{% url 'catalog:add_entry' %}">+ Add an entry</a></p>
 
   {% for work in works %}
     <div>
@@ -22,6 +21,6 @@
       {% endif %}
     </div>
   {% empty %}
-    <p>Nothing here yet. <a href="{% url 'catalog:add_entry' %}">Add the first entry!</a></p>
+    <p>Nothing here yet. <a href="{% url 'catalog:search' %}">Add the first entry!</a></p>
   {% endfor %}
 {% endblock %}

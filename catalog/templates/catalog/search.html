@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Add a movie{% endblock %}
+
+{% block content %}
+  <h1>Search for a movie</h1>
+
+  <form method="get">
+    <input type="text" name="q" value="{{ query }}" placeholder="Search TMDB...">
+    <button type="submit">Search</button>
+  </form>
+
+  {% for movie in results %}
+    <div>
+      {% if movie.poster_path %}
+        <img src="https://image.tmdb.org/t/p/w92{{ movie.poster_path }}" alt="">
+      {% endif %}
+      <strong>{{ movie.title }}</strong>
+      ({{ movie.release_date|slice:":4" }})
+      <a href="{% url 'catalog:select_movie' tmdb_id=movie.id %}">Select</a>
+    </div>
+  {% empty %}
+    {% if query %}
+      <p>No results for "{{ query }}".</p>
+    {% endif %}
+  {% endfor %}
+{% endblock %}
