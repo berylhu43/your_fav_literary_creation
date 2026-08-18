@@ -97,3 +97,11 @@ def get_popular_tv():
     """
     data = _tmdb_get('/tv/popular')
     return data.get('results', [])[:12] if data else []
+
+
+# CREDITS
+def get_movie_credits(external_id):
+    data = _tmdb_get(f'/movie/{external_id}/credits')
+    if data is None:
+        return [], []
+    return data.get('cast', []), data.get('crew', [])

@@ -1,5 +1,5 @@
 from django.utils.html import strip_tags
-from .models import Catalog, Genre
+from .models import Catalog, Genre, Artist, Credit
 from . import clients
 
 def _map_movie(tmdb_id):
@@ -74,6 +74,36 @@ def _map_book(volume_id):
     }
 
 
+def _get_or_create_artists(person):
+    artist,_ = Artist.objects.get_or_create(
+        source = Catalog.Source.TMDB,
+        external_id = str(person['id']),
+        defaults = {
+            'name': person.get('name', '')},
+    )
+    return artist
+
+
+
+def _add_movie_credits(work, external_id):
+    cast, crew = clients.get_movie_credits(external_id)
+
+    # find directors
+    directors = [c for c in crew if c.get('job') == 'Director']
+
+    # top 10 actors
+    top_cast = cast[:10]
+
+    for person in directors:
+        artist = _get_or_create_artists(person)
+        Credit.objects.get_or_create(catalog=work, artist=artist, role='director')
+
+    for person in top_cast:
+        artist = _get_or_create_artists(person)
+        Credit.objects.get_or_create(catalog=work, artist=artist, role='actor')
+
+
+
 def get_or_create_work(*, media_type, external_id):
     """
     Stage 2: given a media_type and a TMDB id, return the matching Catalog
@@ -92,6 +122,7 @@ def get_or_create_work(*, media_type, external_id):
 
     # check if the subject existed in the catalog
     existing = Catalog.objects.filter(
+        media_type=media_type,
         source=source,
         external_id=str(external_id),
     ).first()
@@ -124,5 +155,9 @@ def get_or_create_work(*, media_type, external_id):
         genre,_=Genre.objects.get_or_create(name=g)
         genre_objects.append(genre)
     work.genres.set(genre_objects)
+
+    # credits reflection from TMDB api
+    if media_type == Catalog.MediaType.MOVIE:
+        _add_movie_credits(work, external_id)
 
     return work

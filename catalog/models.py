@@ -44,3 +44,27 @@ class Genre(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class Artist(models.Model):
+    name = models.CharField(max_length=100)
+    external_id = models.CharField(max_length=100, blank=True)
+    source = models.CharField(
+        max_length=20,
+        choices=Catalog.Source.choices,
+        blank=True,
+    )
+
+    def __str__(self):
+        return self.name
+
+
+class Credit(models.Model):
+    catalog = models.ForeignKey(Catalog, on_delete=models.CASCADE, related_name='credits')
+    artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name='credits')
+    role = models.CharField(max_length=50)
+
+    def __str__(self):
+        return f'{self.artist.name} as {self.role} in {self.catalog.title}'
+
+    
