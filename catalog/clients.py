@@ -4,6 +4,7 @@ from django.conf import settings
 TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes'
 
+# SEARCH
 def _tmdb_get(path, params=None):
     """
     Low-level: make one GET request to TMDB, handling timeout/errors.
@@ -79,4 +80,20 @@ def get_book_details(volume_id):
     Returns the book dict, or None on failure.
     """
     return _google_books_get(f'/{volume_id}')
-    
+
+
+# DISCOVERY
+def get_popular_movies():
+    """
+    Fetch popular movies from TMDB.
+    """
+    data = _tmdb_get('/movie/popular')
+    return data.get('results', [])[:12] if data else []
+
+
+def get_popular_tv():
+    """
+    Fetch popular tv series from TMDB.
+    """
+    data = _tmdb_get('/tv/popular')
+    return data.get('results', [])[:12] if data else []

@@ -5,7 +5,7 @@ from reviews.models import Review
 from .forms import AddEntryForm
 from .services import get_or_create_work
 from .models import Catalog
-from .clients import search_books, search_movies, search_tv
+from .clients import search_books, search_movies, search_tv, get_popular_movies, get_popular_tv
 
 @login_required
 def add_entry(request):
@@ -58,17 +58,13 @@ def detail(request, pk):
     return render(request, 'catalog/detail.html', context)
 
 
-def catalog_list(request):
-    works = Catalog.objects.annotate(
-        avg_rating=Avg('reviews__rating'),
-        review_count=Count('reviews'),
-    )
-
-    query = request.GET.get('q', '')
-    if query:
-        works = works.filter(title__icontains=query)
-
-    return render(request, 'catalog/list.html', {'works': works, 'query':query})
+def discovery_home(request):
+    popular_movies = get_popular_movies()
+    popular_tv = get_popular_tv()
+    return render(request, 'catalog/discovery_home.html', {
+        'popular_movies': popular_movies,
+        'popular_tv': popular_tv,
+    })
 
 def search_works(request):
     query = request.GET.get('q', '')

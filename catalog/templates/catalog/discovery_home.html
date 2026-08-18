@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}Browse{% endblock %}
+
+{% block content %}
+  <h1>Discover</h1>
+    <form method="get" action="{% url 'catalog:search' %}">
+      <input type="text" name="q"  value="{{ query }}" placeholder="Search all works...">
+      <select name="media_type">
+        <option value="movie" {% if media_type == 'movie' %}selected{% endif %}>Movie</option>
+        <option value="tv" {% if media_type == 'tv' %}selected{% endif %}>TV</option>
+        <option value="book" {% if media_type == 'book' %}selected{% endif %}>Book</option>
+      </select>
+      <button type="submit">Search</button>
+    </form>
+
+    <h2>Popular Movies</h2>
+  <div style="display:flex; flex-wrap:wrap; gap:12px">
+    {% for movie in popular_movies %}
+      <div style="width:120px">
+        <a href="{% url 'catalog:select_work' media_type='movie' external_id=movie.id %}">
+          {% if movie.poster_path %}
+            <img src="https://image.tmdb.org/t/p/w200{{ movie.poster_path }}" alt="{{ movie.title }}" style="width:100%">
+          {% endif %}
+          <div>{{ movie.title }}</div>
+        </a>
+      </div>
+    {% endfor %}
+  </div>
+
+  <h2>Popular TV</h2>
+  <div style="display:flex; flex-wrap:wrap; gap:12px">
+    {% for show in popular_tv %}
+      <div style="width:120px">
+        <a href="{% url 'catalog:select_work' media_type='tv' external_id=show.id %}">
+          {% if show.poster_path %}
+            <img src="https://image.tmdb.org/t/p/w200{{ show.poster_path }}" alt="{{ show.name }}" style="width:100%">
+          {% endif %}
+          <div>{{ show.name }}</div>
+        </a>
+      </div>
+    {% endfor %}
+  </div>
+{% endblock %}

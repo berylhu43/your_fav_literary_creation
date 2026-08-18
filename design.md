@@ -301,15 +301,15 @@ The personal side (my records: list, edit, delete, search) is being completed wi
 - De-duplication now uses `external_id` (+ `source`), not title matching — the predicted payoff of the reserved fields.
 - API key handled via environment variables (`.env` + `python-dotenv`), `.env` git-ignored, `.env.example` committed as a template.
 - Search → select → detail → rate flow wired up (see §8.13).
-
-**Remaining:**
 - TV shows (`/search/tv`, `/tv/{id}`; note different field names — `name`, `first_air_date`).
 - Books (a separate API — Open Library / Google Books; different structure entirely).
 - Genre mapping (TMDB returns genre ids/objects → map onto the `Genre` table).
+
+**Remaining:**
 - `Artist` / `Credit` (cast/crew arrives with the API data).
 - **Outcome once complete:** `Catalog` holds rich, structured, standardized data (cast, genres, covers, years), which unlocks Stage 3.
 
-### Stage 3 — Discovery and recommendations — *future*
+### Stage 3 — Discovery and recommendations — *in progress*
 
 Everything here depends on the rich data from Stage 2; none of it is possible on manually entered data.
 
@@ -352,6 +352,7 @@ Everything here depends on the rich data from Stage 2; none of it is possible on
 | External API — books (Open Library) | ✅ Implemented |
 | Genre mapping from API | ✅ Implemented |
 | Catalog home as discovery surface (popular / top-rated) | ⬜ Not yet (Stage 3) |
+| Book discovery use nytimes api best seller | ⬜ Not yet (Stage 3) |
 | Discovery filters (genre / cast / rating) — *Stage 3* | 💭 Depends on Stage 2 |
 | LLM recommendations / chat (home page) — *Stage 3* | 💭 Depends on Stage 2 |
 | React frontend | 💭 Possible future |
