@@ -1,3 +1,4 @@
+from django.utils.html import strip_tags
 from .models import Catalog, Genre
 from . import clients
 
@@ -15,7 +16,7 @@ def _map_movie(tmdb_id):
     return {
         'title': data.get('title', ''),
         'release_year': release_year,
-        'description': data.get('overview', ''),
+        'description': strip_tags(data.get('overview', '')),
         'runtime': data.get('runtime'),
         'cover_url': cover_url,
         'genre_names': [g['name'] for g in data.get('genres', [])],
@@ -34,14 +35,46 @@ def _map_tv(tmdb_id):
     return {
         'title': data.get('name', ''),                    
         'release_year': release_year,
-        'description': data.get('overview', ''),
+        'description': strip_tags(data.get('overview', '')),
         'episodes': data.get('number_of_episodes'),       
         'cover_url': cover_url,
         'genre_names': [g['name'] for g in data.get('genres', [])],
     }
 
 
-def get_or_create_work(*, media_type, tmdb_id):
+def _map_book(volume_id):
+    data = clients.get_book_details(volume_id)
+    if data is None:
+        return None
+
+    info = data.get('volumeInfo', {})
+
+    published = info.get('publishedDate') or ''
+    release_year = int(published[:4]) if published[:4].isdigit() else None
+    image_links = info.get('imageLinks', {})
+    cover_url = image_links.get('thumbnail', '')
+
+    # google books api returns categories as a list of strings
+    # each string may contain multiple genres separated by "/"
+    genre_names = []
+    categories = info.get('categories', [])
+    if categories:
+        for part in categories[0].split('/'):   
+            name = part.strip()
+            if name:
+                genre_names.append(name)
+
+    return {
+        'title': info.get('title', ''),
+        'release_year': release_year,
+        'description': strip_tags(info.get('description', '')),
+        'pages': info.get('pageCount'),
+        'cover_url': cover_url,
+        'genre_names': genre_names,
+    }
+
+
+def get_or_create_work(*, media_type, external_id):
     """
     Stage 2: given a media_type and a TMDB id, return the matching Catalog
     row — reusing it if it already exists, otherwise fetching from TMDB,
@@ -49,22 +82,29 @@ def get_or_create_work(*, media_type, tmdb_id):
 
     Search tv and movie available on current stage.
     """
+    # check source by media types
+    if media_type == Catalog.MediaType.BOOK:
+        source = Catalog.Source.GOOGLE_BOOKS
+    elif media_type in (Catalog.MediaType.MOVIE, Catalog.MediaType.TV):
+        source = Catalog.Source.TMDB
+    else:
+        return None   
 
     # check if the subject existed in the catalog
     existing = Catalog.objects.filter(
-        source=Catalog.Source.TMDB,
-        external_id=str(tmdb_id),
+        source=source,
+        external_id=str(external_id),
     ).first()
     if existing:
         return existing
 
     # if not existed, get by media type
     if media_type == Catalog.MediaType.MOVIE:
-        fields = _map_movie(tmdb_id)
+        fields = _map_movie(external_id)
     elif media_type == Catalog.MediaType.TV:
-        fields = _map_tv(tmdb_id)
-    else:
-        return None
+        fields = _map_tv(external_id)
+    elif media_type == Catalog.MediaType.BOOK:
+        fields = _map_book(external_id)
 
     if fields is None:
         return None
@@ -73,8 +113,8 @@ def get_or_create_work(*, media_type, tmdb_id):
     
     work = Catalog.objects.create(
         media_type = media_type,
-        source=Catalog.Source.TMDB,
-        external_id=str(tmdb_id),
+        source=source,
+        external_id=str(external_id),
         **fields,
     )
 

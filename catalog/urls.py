@@ -8,5 +8,5 @@ urlpatterns = [
     path('add/', views.add_entry, name='add_entry'),
     path('<int:pk>/', views.detail, name='detail'),
     path('search/', views.search_works, name='search'),
-    path('select/<str:media_type>/<int:tmdb_id>/', views.select_work, name='select_work'),
+    path('select/<str:media_type>/<str:external_id>/', views.select_work, name='select_work'),
 ]

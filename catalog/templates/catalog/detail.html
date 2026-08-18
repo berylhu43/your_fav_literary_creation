@@ -17,8 +17,10 @@
 
   <p>
     Type: {{ work.get_media_type_display }}
+  </p>
+  <p>
     {% if work.genres.all %}
-      · Genres:
+      Genres:
       {% for genre in work.genres.all %}
         {{ genre.name }}{% if not forloop.last %}, {% endif %}
       {% endfor %}

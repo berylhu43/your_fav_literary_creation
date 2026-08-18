@@ -9,19 +9,30 @@
     <select name="media_type">
       <option value="movie" {% if media_type == 'movie' %}selected{% endif %}>Movie</option>
       <option value="tv" {% if media_type == 'tv' %}selected{% endif %}>TV</option>
+      <option value="book" {% if media_type == 'book' %}selected{% endif %}>Book</option>
     </select>
     <button type="submit">Search</button>
   </form>
 
   {% for item in results %}
     <div>
-      {% if item.poster_path %}
-        <img src="https://image.tmdb.org/t/p/w92{{ item.poster_path }}" alt="">
+    {% if media_type == 'book' %}
+      {% if item.volumeInfo.imageLinks.thumbnail %}
+        <img src="{{ item.volumeInfo.imageLinks.thumbnail }}" alt="">
       {% endif %}
-      <strong>{% if media_type == 'tv' %}{{ item.name }}{% else %}{{ item.title }}{% endif %}</strong>
-      ({% if media_type == 'tv' %}{{ item.first_air_date|slice:":4" }}{% else %}{{ item.release_date|slice:":4" }}{% endif %})
-      <a href="{% url 'catalog:select_work' tmdb_id=item.id media_type=media_type %}">Select</a>
-    </div>
+      <strong>{{ item.volumeInfo.title }}</strong>
+      ({{ item.volumeInfo.publishedDate|slice:":4" }})
+    {% elif media_type == 'tv' %}
+      {% if item.poster_path %}<img src="https://image.tmdb.org/t/p/w92{{ item.poster_path }}" alt="">{% endif %}
+      <strong>{{ item.name }}</strong>
+      ({{ item.first_air_date|slice:":4" }})
+    {% else %}
+      {% if item.poster_path %}<img src="https://image.tmdb.org/t/p/w92{{ item.poster_path }}" alt="">{% endif %}
+      <strong>{{ item.title }}</strong>
+      ({{ item.release_date|slice:":4" }})
+    {% endif %}
+    <a href="{% url 'catalog:select_work' media_type=media_type external_id=item.id %}">Select</a>
+  </div>
   {% empty %}
     {% if query %}
       <p>No results for "{{ query }}".</p>

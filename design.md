@@ -348,9 +348,9 @@ Everything here depends on the rich data from Stage 2; none of it is possible on
 | TMDB movie search → select → detail → rate flow | ✅ Implemented |
 | `external_id` + `source` de-duplication (movies) | ✅ Implemented |
 | `Artist` / `Credit` | 📐 Designed, not implemented |
-| External API — TV shows (`/search/tv`) | ⬜ Not yet (Stage 2) |
-| External API — books (Open Library) | ⬜ Not yet (Stage 2) |
-| Genre mapping from API | ⬜ Not yet (Stage 2) |
+| External API — TV shows (`/search/tv`) | ✅ Implemented |
+| External API — books (Open Library) | ✅ Implemented |
+| Genre mapping from API | ✅ Implemented |
 | Catalog home as discovery surface (popular / top-rated) | ⬜ Not yet (Stage 3) |
 | Discovery filters (genre / cast / rating) — *Stage 3* | 💭 Depends on Stage 2 |
 | LLM recommendations / chat (home page) — *Stage 3* | 💭 Depends on Stage 2 |

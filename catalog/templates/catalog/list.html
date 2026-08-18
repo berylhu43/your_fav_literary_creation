@@ -5,10 +5,11 @@
 {% block content %}
   <h1>All works</h1>
     <form method="get" action="{% url 'catalog:search' %}">
-      <input type="text" name="q" placeholder="Search all works...">
-      <select name="'media_type">
-        <option value="movie">Movie</option>
-        <option value="tv">TV</option>
+      <input type="text" name="q"  value="{{ query }}" placeholder="Search all works...">
+      <select name="media_type">
+        <option value="movie" {% if media_type == 'movie' %}selected{% endif %}>Movie</option>
+        <option value="tv" {% if media_type == 'tv' %}selected{% endif %}>TV</option>
+        <option value="book" {% if media_type == 'book' %}selected{% endif %}>Book</option>
       </select>
       <button type="submit">Search</button>
     </form>

@@ -141,3 +141,6 @@ LOGOUT_REDIRECT_URL = 'home'
 
 # TMDB API
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY')
+
+# Google Books API
+GOOGLE_BOOKS_API_KEY = os.environ.get('GOOGLE_BOOKS_API_KEY')

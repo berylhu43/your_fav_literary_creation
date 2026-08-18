@@ -10,7 +10,7 @@ class Catalog(models.Model):
     class Source(models.TextChoices):
         MANUAL = 'manual', 'Manual'
         TMDB = 'tmdb', 'TMDB'
-        OPENLIBRARY = 'openlibrary', 'Open Library'
+        GOOGLE_BOOKS = 'googlebooks', 'Google Books'
 
     media_type = models.CharField(max_length=10, choices=MediaType.choices)
     title = models.CharField(max_length=255)
