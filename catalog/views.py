@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.db.models import Avg, Count
+from django.db.models import Avg
+from django.core.cache import cache
 from reviews.models import Review
 from .forms import AddEntryForm
 from .services import get_or_create_work
@@ -59,8 +60,16 @@ def detail(request, pk):
 
 
 def discovery_home(request):
-    popular_movies = get_popular_movies()
-    popular_tv = get_popular_tv()
+    popular_movies = cache.get('popular_movies')
+    if popular_movies is None:
+        popular_movies = get_popular_movies()
+        cache.set('popular_movies', popular_movies, 60 * 60)  # Cache for 1 hour
+
+    popular_tv = cache.get('popular_tv')
+    if popular_tv is None:
+        popular_tv = get_popular_tv()
+        cache.set('popular_tv', popular_tv, 60 * 60)  # Cache for 1 hour
+
     return render(request, 'catalog/discovery_home.html', {
         'popular_movies': popular_movies,
         'popular_tv': popular_tv,
