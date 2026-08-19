@@ -304,9 +304,7 @@ The personal side (my records: list, edit, delete, search) is being completed wi
 - Three media types fully wired: movies & TV (TMDB), books (Google Books) — search → select → detail → rate, with a media-type selector on search.
 - Genre mapping per source (TMDB genre objects; Google Books `categories` paths split on `/`), with dirty legacy data cleaned.
 - `upsert_review` service extracted (shared by add and edit).
-
-**Remaining:**
-- `Artist` / `Credit` (cast/crew/authors — the last piece of rich data).
+- `Artist` / `Credit` (cast/crew/authors).
 
 ### Stage 3 — Discovery and recommendations — *started*
 
@@ -348,7 +346,7 @@ Everything here depends on the rich data from Stage 2; none of it is possible on
 | TMDB API client layer (`catalog/clients.py`) | ✅ Implemented |
 | TMDB movie search → select → detail → rate flow | ✅ Implemented |
 | `external_id` + `source` de-duplication (all media) | ✅ Implemented |
-| `Artist` / `Credit` | 📐 Designed, not implemented |
+| `Artist` / `Credit` | ✅ Implemented |
 | External API — TV shows (`/search/tv`) | ✅ Implemented |
 | External API — books (Google Books) | ✅ Implemented |
 | Genre mapping from API | ✅ Implemented |
