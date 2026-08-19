@@ -18,13 +18,15 @@
     <div style="display:flex; flex-wrap:wrap; gap:16px">
         {% for work in cast %}
         <div style="width:120px">
-            <div style="width:120px">
-            {% if work.poster_path %}
+        <div style="width:120px">
+            <a href="{% url 'catalog:select_work' media_type=work.media_type external_id=work.id %}">
+                {% if work.poster_path %}
                 <img src="https://image.tmdb.org/t/p/w185{{ work.poster_path }}" alt="" style="width:100%; display:block">
-            {% else %}
+                {% else %}
                 <img src="{% static 'catalog/img/poster_placeholder_185.png' %}" alt="" style="width:100%; display:block">
-            {% endif %}
-            </div>
+                {% endif %}
+            </a>
+        </div>
 
             {% if work.media_type == 'tv' %}
             <strong>{{ work.name }}</strong>

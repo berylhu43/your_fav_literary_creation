@@ -77,19 +77,6 @@ def _map_book(volume_id):
     }
 
 
-def _get_or_create_artists(person):
-    profile_path = person.get('profile_path')
-    profile_url = f'https://image.tmdb.org/t/p/w185{profile_path}' if profile_path else ''
-    artist,_ = Artist.objects.get_or_create(
-        source = Catalog.Source.TMDB,
-        external_id = str(person['id']),
-        defaults = {
-            'name': person.get('name', ''),
-            'profile_url': profile_url,
-        },
-    )
-    return artist
-
 
 def _add_movie_credits(work, external_id):
     cast, crew = clients.get_movie_credits(external_id)
@@ -188,6 +175,20 @@ def get_or_create_work(*, media_type, external_id):
         _add_book_credits(work, author_names)
 
     return work
+
+
+def _get_or_create_artists(person):
+    profile_path = person.get('profile_path')
+    profile_url = f'https://image.tmdb.org/t/p/w185{profile_path}' if profile_path else ''
+    artist,_ = Artist.objects.get_or_create(
+        source = Catalog.Source.TMDB,
+        external_id = str(person['id']),
+        defaults = {
+            'name': person.get('name', ''),
+            'profile_url': profile_url,
+        },
+    )
+    return artist
 
 
 def _merge_crew(crew):
