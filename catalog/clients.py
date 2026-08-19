@@ -105,3 +105,10 @@ def get_movie_credits(external_id):
     if data is None:
         return [], []
     return data.get('cast', []), data.get('crew', [])
+
+def get_tv_credits(external_id):
+    # tv only return casts on credits page
+    data = _tmdb_get(f'/tv/{external_id}/credits')
+    if data is None:
+        return []
+    return data.get('cast', [])

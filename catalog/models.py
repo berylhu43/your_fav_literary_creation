@@ -54,6 +54,7 @@ class Artist(models.Model):
         choices=Catalog.Source.choices,
         blank=True,
     )
+    profile_url = models.URLField(blank=True)
 
     def __str__(self):
         return self.name

@@ -27,14 +27,6 @@
     {% endif %}
   </p>
 
-  <p>
-    Average rating:
-    {% if average %}
-      {{ average|floatformat:1 }} / 5
-    {% else %}
-      No ratings yet
-    {% endif %}
-  </p>
   <h2>Your review</h2>
   {% if user.is_authenticated %}
     {% if my_review %}
@@ -51,6 +43,20 @@
   {% else %}
     <p><a href="{% url 'accounts:login' %}">Log in</a> to add your review.</p>
   {% endif %}
+
+  {% include 'catalog/_people_row.html' with people=directors label='Director' %}
+  {% include 'catalog/_people_row.html' with people=actors label='Cast' %}
+  {% include 'catalog/_people_row.html' with people=authors label='Author' %}
+
+
+  <p>
+    <h2>Average rating</h2>
+    {% if average %}
+      {{ average|floatformat:1 }} / 5
+    {% else %}
+      No ratings yet
+    {% endif %}
+  </p>
 
 
   <h2>Other reviews</h2>

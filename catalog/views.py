@@ -49,11 +49,19 @@ def detail(request, pk):
         my_review = all_reviews.filter(user=request.user).first()
         other_reviews = all_reviews.exclude(user=request.user)
 
+    credits = work.credits.select_related('artist')
+    directors = [c.artist for c in credits if c.role == 'director']
+    actors = [c.artist for c in credits if c.role == 'actor']
+    authors = [c.artist for c in credits if c.role == 'author']
+
     context = {
         'work': work,
         'reviews': other_reviews,
         'average': average,
         'my_review': my_review,
+        'directors': directors,
+        'actors': actors,
+        'authors': authors,
     }
 
     return render(request, 'catalog/detail.html', context)

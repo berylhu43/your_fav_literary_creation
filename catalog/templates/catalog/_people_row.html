@@ -1,0 +1,13 @@
+{% if people %}
+  <h3>{{ label }}</h3>
+  <div style="display:flex; flex-wrap:wrap; gap:12px">
+    {% for person in people %}
+      <div style="width:90px; text-align:center">
+        {% if person.profile_url %}
+          <img src="{{ person.profile_url }}" alt="{{ person.name }}" style="width:100%">
+        {% endif %}
+        <div>{{ person.name }}</div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}

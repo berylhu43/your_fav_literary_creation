@@ -31,6 +31,7 @@ def _map_tv(tmdb_id):
     release_year = int(first_air[:4]) if first_air[:4].isdigit() else None
     poster_path = data.get('poster_path')
     cover_url = f'https://image.tmdb.org/t/p/w500{poster_path}' if poster_path else ''
+    created_by = data.get('created_by', [])
 
     return {
         'title': data.get('name', ''),                    
@@ -39,6 +40,7 @@ def _map_tv(tmdb_id):
         'episodes': data.get('number_of_episodes'),       
         'cover_url': cover_url,
         'genre_names': [g['name'] for g in data.get('genres', [])],
+        'created_by': created_by
     }
 
 
@@ -71,18 +73,22 @@ def _map_book(volume_id):
         'pages': info.get('pageCount'),
         'cover_url': cover_url,
         'genre_names': genre_names,
+        'author_names': info.get('authors', []),
     }
 
 
 def _get_or_create_artists(person):
+    profile_path = person.get('profile_path')
+    profile_url = f'https://image.tmdb.org/t/p/w185{profile_path}' if profile_path else ''
     artist,_ = Artist.objects.get_or_create(
         source = Catalog.Source.TMDB,
         external_id = str(person['id']),
         defaults = {
-            'name': person.get('name', '')},
+            'name': person.get('name', ''),
+            'profile_url': profile_url,
+        },
     )
     return artist
-
 
 
 def _add_movie_credits(work, external_id):
@@ -91,18 +97,33 @@ def _add_movie_credits(work, external_id):
     # find directors
     directors = [c for c in crew if c.get('job') == 'Director']
 
-    # top 10 actors
-    top_cast = cast[:10]
-
     for person in directors:
         artist = _get_or_create_artists(person)
         Credit.objects.get_or_create(catalog=work, artist=artist, role='director')
 
-    for person in top_cast:
+    for person in cast[:10]:
+        artist = _get_or_create_artists(person)
+        Credit.objects.get_or_create(catalog=work, artist=artist, role='actor')
+
+def _add_tv_credits(work, external_id, created_by):
+    cast = clients.get_tv_credits(external_id)
+
+    for person in created_by:
+        artist = _get_or_create_artists(person)
+        Credit.objects.get_or_create(catalog=work, artist=artist, role='director')
+
+    for person in cast[:10]:
         artist = _get_or_create_artists(person)
         Credit.objects.get_or_create(catalog=work, artist=artist, role='actor')
 
 
+def _add_book_credits(work, author_names):
+    for name in author_names:
+        artist, _ = Artist.objects.get_or_create(
+            name=name,
+            defaults={'source': Catalog.Source.GOOGLE_BOOKS}
+        )
+        Credit.objects.get_or_create(catalog=work, artist=artist, role='author')
 
 def get_or_create_work(*, media_type, external_id):
     """
@@ -141,6 +162,8 @@ def get_or_create_work(*, media_type, external_id):
         return None
 
     genre_names = fields.pop('genre_names')
+    created_by = fields.pop('created_by', [])
+    author_names = fields.pop('author_names', [])
     
     work = Catalog.objects.create(
         media_type = media_type,
@@ -159,5 +182,9 @@ def get_or_create_work(*, media_type, external_id):
     # credits reflection from TMDB api
     if media_type == Catalog.MediaType.MOVIE:
         _add_movie_credits(work, external_id)
+    elif media_type == Catalog.MediaType.TV:
+        _add_tv_credits(work, external_id, created_by)
+    elif media_type == Catalog.MediaType.BOOK:
+        _add_book_credits(work, author_names)
 
     return work
