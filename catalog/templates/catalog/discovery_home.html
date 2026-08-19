@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-
+{% load static %}
 {% block title %}Browse{% endblock %}
 
 {% block content %}
@@ -14,31 +14,53 @@
       <button type="submit">Search</button>
     </form>
 
-    <h2>Popular Movies</h2>
-  <div style="display:flex; flex-wrap:wrap; gap:12px">
-    {% for movie in popular_movies %}
-      <div style="width:120px">
-        <a href="{% url 'catalog:select_work' media_type='movie' external_id=movie.id %}">
-          {% if movie.poster_path %}
-            <img src="https://image.tmdb.org/t/p/w200{{ movie.poster_path }}" alt="{{ movie.title }}" style="width:100%">
-          {% endif %}
-          <div>{{ movie.title }}</div>
-        </a>
-      </div>
-    {% endfor %}
-  </div>
+  <h2>Popular Movies</h2>
+    <form method="get">
+      <select name="genre_movie">
+        <option value="">All genres</option>
+        {% for g in genres_movie %}
+          <option value="{{ g.id }}" {% if selected_genre_movie == g.id|stringformat:'s' %}selected{% endif %}>{{ g.name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Filter</button>
+    </form>
+    <div style="display:flex; flex-wrap:wrap; gap:12px">
+      {% for movie in movies %}
+        <div style="width:120px">
+          <a href="{% url 'catalog:select_work' media_type='movie' external_id=movie.id %}">
+            {% if movie.poster_path %}
+              <img src="https://image.tmdb.org/t/p/w185{{ movie.poster_path }}" alt="{{ movie.title }}" style="width:100%">
+            {% else %}
+              <img src="{% static 'catalog/img/poster_placeholder_185.png' %}" alt="{{ movie.title }}" style="width:100%">
+            {% endif %}
+            <div>{{ movie.title }}</div>
+          </a>
+        </div>
+      {% endfor %}
+    </div>
 
   <h2>Popular TV</h2>
-  <div style="display:flex; flex-wrap:wrap; gap:12px">
-    {% for show in popular_tv %}
-      <div style="width:120px">
-        <a href="{% url 'catalog:select_work' media_type='tv' external_id=show.id %}">
-          {% if show.poster_path %}
-            <img src="https://image.tmdb.org/t/p/w200{{ show.poster_path }}" alt="{{ show.name }}" style="width:100%">
-          {% endif %}
-          <div>{{ show.name }}</div>
-        </a>
-      </div>
-    {% endfor %}
-  </div>
+    <form method="get">
+      <select name="genre_tv">
+        <option value="">All genres</option>
+        {% for g in genres_tv %}
+          <option value="{{ g.id }}" {% if selected_genre_tv == g.id|stringformat:'s' %}selected{% endif %}>{{ g.name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Filter</button>
+    </form>
+    <div style="display:flex; flex-wrap:wrap; gap:12px">
+      {% for show in tv %}
+        <div style="width:120px">
+          <a href="{% url 'catalog:select_work' media_type='tv' external_id=show.id %}">
+            {% if show.poster_path %}
+              <img src="https://image.tmdb.org/t/p/w185{{ show.poster_path }}" alt="{{ show.name }}" style="width:100%">
+            {% else %}
+              <img src="{% static 'catalog/img/poster_placeholder_185.png' %}" alt="{{ show.name }}" style="width:100%">
+            {% endif %}
+            <div>{{ show.name }}</div>
+          </a>
+        </div>
+      {% endfor %}
+    </div>
 {% endblock %}

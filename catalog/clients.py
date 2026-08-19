@@ -83,20 +83,37 @@ def get_book_details(volume_id):
 
 
 # DISCOVERY
-def get_popular_movies():
-    """
-    Fetch popular movies from TMDB.
-    """
-    data = _tmdb_get('/movie/popular')
-    return data.get('results', [])[:12] if data else []
+def get_movie_genres():
+    data = _tmdb_get('/genre/movie/list')
+    return data.get('genres', []) if data else []
 
 
-def get_popular_tv():
+def discover_movies(genre_id=None):
     """
-    Fetch popular tv series from TMDB.
+    Fetch popular movies from TMDB (by genre if exist).
     """
-    data = _tmdb_get('/tv/popular')
-    return data.get('results', [])[:12] if data else []
+    params = {'sort_by': 'popularity.desc'}
+    if genre_id:
+        params['with_genres'] = genre_id
+    data = _tmdb_get('/discover/movie', params)
+    return data.get('results', [])[:20] if data else []
+
+
+def get_tv_genres():
+    data = _tmdb_get('/genre/tv/list')
+    return data.get('genres', []) if data else []
+
+
+def discover_tv(genre_id=None):
+    """
+    Fetch popular tv series from TMDB (by genre if exist).
+    """
+    params = {'sort_by': 'popularity.desc'}
+    if genre_id:
+        params['with_genres'] = genre_id
+    data = _tmdb_get('/discover/tv', params)
+    return data.get('results', [])[:20] if data else []
+
 
 
 # CREDITS
@@ -112,3 +129,5 @@ def get_tv_credits(external_id):
     if data is None:
         return []
     return data.get('cast', [])
+
+

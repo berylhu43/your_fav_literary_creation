@@ -306,12 +306,15 @@ The personal side (my records: list, edit, delete, search) is being completed wi
 - `upsert_review` service extracted (shared by add and edit).
 - `Artist` / `Credit` (cast/crew/authors).
 
-### Stage 3 — Discovery and recommendations — *started*
+### Stage 3 — Discovery and recommendations — *in progress*
 
 Everything here depends on the rich data from Stage 2; none of it is possible on manually entered data.
 
-- **Catalog home as a discovery surface** — *done*: the home page now shows TMDB "popular movies" and "popular TV" poster walls (via `/movie/popular`, `/tv/popular`), replacing the old in-library list. Each poster links into the select → detail flow. Book discovery (no popular endpoint on Google Books) is planned via the NYT Bestseller API.
-- **Response caching** — *done*: popular lists are cached (`cache.get`/`cache.set`, 1-hour TTL, `LocMemCache` in dev) so the home page hits TMDB roughly once an hour instead of on every load.
+**Done:**
+- **Catalog home as a discovery surface**: the home page now shows TMDB "popular movies" and "popular TV" poster walls (via `/movie/popular`, `/tv/popular`), replacing the old in-library list. Each poster links into the select → detail flow. Book discovery (no popular endpoint on Google Books) is planned via the NYT Bestseller API.
+- **Response caching**: popular lists are cached (`cache.get`/`cache.set`, 1-hour TTL, `LocMemCache` in dev) so the home page hits TMDB roughly once an hour instead of on every load.
+
+**Planned:**
 - **Discovery filters** (genre / cast / rating) — planned; needs `Artist` for cast filtering.
 - **Home page as the LLM surface** — planned.
 - **`recommendations` app** — planned.

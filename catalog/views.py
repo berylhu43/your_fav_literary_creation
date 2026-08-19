@@ -6,7 +6,7 @@ from reviews.models import Review
 from .forms import AddEntryForm
 from .services import get_or_create_work
 from .models import Catalog
-from .clients import search_books, search_movies, search_tv, get_popular_movies, get_popular_tv
+from .clients import discover_movies, get_movie_genres, search_books, search_movies, search_tv, discover_tv, get_tv_genres
 
 @login_required
 def add_entry(request):
@@ -68,19 +68,43 @@ def detail(request, pk):
 
 
 def discovery_home(request):
-    popular_movies = cache.get('popular_movies')
-    if popular_movies is None:
-        popular_movies = get_popular_movies()
-        cache.set('popular_movies', popular_movies, 60 * 60)  # Cache for 1 hour
+    genre_id_movie = request.GET.get('genre_movie', '')
+    genre_id_tv = request.GET.get('genre_tv', '')
+    genres_movie = cache.get('movie_genres')
+    genres_tv = cache.get('tv_genres')
 
-    popular_tv = cache.get('popular_tv')
-    if popular_tv is None:
-        popular_tv = get_popular_tv()
-        cache.set('popular_tv', popular_tv, 60 * 60)  # Cache for 1 hour
+
+    if genres_movie is None:
+        genres_movie = get_movie_genres()
+        cache.set('movie_genres', genres_movie, 60 * 60)  # Cache for 1 hour
+
+    if genre_id_movie:
+        movies = discover_movies(genre_id=genre_id_movie)
+    else:
+        movies = cache.get('popular_movies')
+        if movies is None:
+            movies = discover_movies()
+            cache.set('popular_movies', movies, 60 * 60)  
+
+    if genres_tv is None:
+        genres_tv = get_tv_genres()
+        cache.set('tv_genres', genres_tv, 60 * 60)  # Cache for 1 hour
+
+    if genre_id_tv:
+        tv = discover_tv(genre_id=genre_id_tv)
+    else:
+        tv = cache.get('popular_tv')
+        if tv is None:
+            tv = discover_tv()
+            cache.set('popular_tv', tv, 60 * 60)  
 
     return render(request, 'catalog/discovery_home.html', {
-        'popular_movies': popular_movies,
-        'popular_tv': popular_tv,
+        'movies': movies,
+        'genres_movie': genres_movie,
+        'selected_genre_movie': genre_id_movie,
+        'tv': tv,
+        'genres_tv': genres_tv,
+        'selected_genre_tv': genre_id_tv,
     })
 
 def search_works(request):

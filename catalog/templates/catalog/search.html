@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block title %}Add a movie{% endblock %}
 
 {% block content %}
@@ -23,11 +24,23 @@
       <strong>{{ item.volumeInfo.title }}</strong>
       ({{ item.volumeInfo.publishedDate|slice:":4" }})
     {% elif media_type == 'tv' %}
-      {% if item.poster_path %}<img src="https://image.tmdb.org/t/p/w92{{ item.poster_path }}" alt="">{% endif %}
+      <div style="width:92px">
+        {% if item.poster_path %}
+          <img src="https://image.tmdb.org/t/p/w92{{ item.poster_path }}" alt="" style="width:100%; display:block">
+        {% else %}
+          <img src="{% static 'catalog/img/poster_placeholder_185.png' %}" alt="" style="width:100%; display:block">
+        {% endif %}
+      </div>
       <strong>{{ item.name }}</strong>
       ({{ item.first_air_date|slice:":4" }})
     {% else %}
-      {% if item.poster_path %}<img src="https://image.tmdb.org/t/p/w92{{ item.poster_path }}" alt="">{% endif %}
+      <div style="width:92px">
+        {% if item.poster_path %}
+          <img src="https://image.tmdb.org/t/p/w92{{ item.poster_path }}" alt="" style="width:100%; display:block">
+        {% else %}
+          <img src="{% static 'catalog/img/poster_placeholder_185.png' %}" alt="" style="width:100%; display:block">
+        {% endif %}
+      </div>
       <strong>{{ item.title }}</strong>
       ({{ item.release_date|slice:":4" }})
     {% endif %}
