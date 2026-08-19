@@ -160,8 +160,11 @@ erDiagram
         datetime created_at
     }
     ARTIST {
-        int id PK
-        string name "Stage 2"
+    int id PK
+    string name
+    string external_id "TMDB person id"
+    string source
+    string profile_url "nullable"
     }
     CREDIT {
         int id PK
@@ -260,7 +263,17 @@ Three models were considered:
 - **Fixed pre-load** — a static imported set. Rejected: too limiting; users' works won't be in it.
 - **API-with-caching (chosen for Stage 2)** — on search, check the local `Catalog`; if absent, fetch from TMDB / Open Library, store it (cache), and point the review at it. The second user recording the same work reuses the cached row. `Catalog` becomes an ever-more-complete local mirror.
 
-Stage 1 uses manual entry deliberately — as scaffolding that mimics the Stage 2 shape — while the real de-duplication is solved later via `external_id`.
+Stage 1 uses manual entry deliberately — as scaffolding that mimics the Stage 2 shape — while the real de-duplication is solved later via `external_id`. 
+
+Stage 3 decision:
+
+**Corollary — a Catalog row carries no personal meaning.** Because `Catalog` is a
+pure mirror, a row's mere existence means only "this work has been cached," never
+"someone wants it." All personal/collection semantics live in `Review` (§8.2), not
+in "is it in Catalog." This is why "browse = persist" is safe: clicking a poster
+(search or artist detail) calls `select_work`, which persists on click by design —
+more rows just mean fewer future API calls, and can never pollute recommendations,
+lists, or stats, all of which read from `Review`.
 
 ### 8.11 Seed genres via a data migration
 
@@ -277,6 +290,18 @@ The work detail page is the single place a user acts on a work. Instead of scatt
 Two supporting decisions:
 - **Public browse, authenticated action.** Search, browse, and viewing a work's detail need no login (`@login_required` is absent from those views); only creating/editing/deleting a review requires it. This matches the public + personal positioning and lowers the barrier to explore before signing up.
 - **Select persists first, then routes to detail.** Selecting a movie from TMDB search first calls `get_or_create_work` to persist (cache) the `Catalog` row, then redirects to that work's detail page by `pk`. Because the work is guaranteed to exist by then, the downstream "add my review" view takes the work's `pk` (not a TMDB id) and does not re-fetch — TMDB fetching lives only in the select step, keeping the rating step purely internal.
+
+### 8.14 Artist detail reads live from TMDB, not from the local library
+
+Clicking a person shows their *full* filmography, so the data source is TMDB's
+`combined_credits` endpoint (live), not the local `Credit` table. This is the
+deliberate inverse of the planned cast **discovery filter** (§9 Stage 3), which
+will read from the local library (`Catalog` filtered by `credit__artist`) to show
+only already-collected works. Same entity (`Artist`), opposite data source:
+"everything this person made" is a catalog-browsing act (TMDB); "which of my works
+feature this person" is a library-filtering act (local DB). Layering follows the
+Stage 2 pattern: `get_artist` (client) fetches; `_merge_crew` (service) dedupes
+crew by `(id, media_type)` and collapses multiple jobs into one entry.
 
 ---
 
@@ -313,9 +338,14 @@ Everything here depends on the rich data from Stage 2; none of it is possible on
 **Done:**
 - **Catalog home as a discovery surface**: the home page now shows TMDB "popular movies" and "popular TV" poster walls (via `/movie/popular`, `/tv/popular`), replacing the old in-library list. Each poster links into the select → detail flow. Book discovery (no popular endpoint on Google Books) is planned via the NYT Bestseller API.
 - **Response caching**: popular lists are cached (`cache.get`/`cache.set`, 1-hour TTL, `LocMemCache` in dev) so the home page hits TMDB roughly once an hour instead of on every load.
+- **Artist detail page**: Click a person's photo → full TMDB filmography.
+  - `get_artist` (client) fetches `combined_credits`; returns cast + crew.
+  - `_merge_crew` (service) dedupes by `(id, media_type)`, collapses multiple jobs into one entry.
+  - Cast/crew shown in two blocks; posters link into `select_work` (fetch-on-click persistence).
+- **Discovery filters** (genre): search popular movie and tv by genre.
 
 **Planned:**
-- **Discovery filters** (genre / cast / rating) — planned; needs `Artist` for cast filtering.
+- **Discovery filters** (cast / rating) — planned; implement in review app.
 - **Home page as the LLM surface** — planned.
 - **`recommendations` app** — planned.
 
@@ -356,7 +386,9 @@ Everything here depends on the rich data from Stage 2; none of it is possible on
 | Catalog home as discovery surface (popular movies + TV feeds) | ✅ Implemented |
 | Response caching for external API lists | ✅ Implemented |
 | Book discovery via NYT Bestseller API | ⬜ Not yet |
-| Discovery filters (genre / cast / rating) — *Stage 3* | 💭 Depends on Stage 2 |
+| Discovery filters (genre) — *Stage 3* | ✅ Implemented |
+| Artist detail page (TMDB combined_credits, cast + crew) | ✅ Implemented |
+| Discovery filters (cast / rating) — *Stage 3* | ⬜ Not yet |
 | LLM recommendations / chat (home page) — *Stage 3* | 💭 Depends on Stage 2 |
 | React frontend | 💭 Possible future |
 
