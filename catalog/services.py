@@ -127,7 +127,7 @@ def _add_book_credits(work, author_names):
 
 def get_or_create_work(*, media_type, external_id):
     """
-    Stage 2: given a media_type and a TMDB id, return the matching Catalog
+    Given a media_type and a TMDB id, return the matching Catalog
     row — reusing it if it already exists, otherwise fetching from TMDB,
     mapping the fields, and creating it.
 
@@ -188,3 +188,20 @@ def get_or_create_work(*, media_type, external_id):
         _add_book_credits(work, author_names)
 
     return work
+
+
+def _merge_crew(crew):
+    merged = {}
+    for c in crew:
+        key = (c['id'], c['media_type'])
+        if key not in merged:
+            entry = c.copy()
+            entry['jobs'] = []
+            merged[key] = entry
+        job = c.get('job')
+        if job and job not in merged[key]['jobs']:
+            merged[key]['jobs'].append(job)
+
+    result = list(merged.values())
+    result.sort(key=lambda c: c.get('popularity') or 0, reverse=True)
+    return result

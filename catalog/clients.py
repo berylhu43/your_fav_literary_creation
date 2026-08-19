@@ -131,3 +131,13 @@ def get_tv_credits(external_id):
     return data.get('cast', [])
 
 
+# ARTIST
+def get_artist(external_id):
+    data = _tmdb_get(f'/person/{external_id}/combined_credits')
+    if data is None:
+        return []
+    cast = data.get('cast', [])
+    crew = data.get('crew', [])
+    cast.sort(key=lambda c: c.get('popularity') or 0, reverse=True)
+    return cast, crew
+    

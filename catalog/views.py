@@ -4,9 +4,9 @@ from django.db.models import Avg
 from django.core.cache import cache
 from reviews.models import Review
 from .forms import AddEntryForm
-from .services import get_or_create_work
-from .models import Catalog
-from .clients import discover_movies, get_movie_genres, search_books, search_movies, search_tv, discover_tv, get_tv_genres
+from .services import get_or_create_work, _merge_crew
+from .models import Catalog, Artist
+from .clients import discover_movies, get_movie_genres, search_books, search_movies, search_tv, discover_tv, get_tv_genres, get_artist
 
 @login_required
 def add_entry(request):
@@ -132,3 +132,14 @@ def select_work(request, external_id, media_type):
             'error': 'Could not fetch this work. Try another one.',
         })
     return redirect('catalog:detail', pk=work.pk)
+
+
+def artist_detail(request, pk):
+    artist = get_object_or_404(Artist, pk=pk)
+    cast, crew = get_artist(artist.external_id)
+    crew = _merge_crew(crew)
+    return render(request, 'catalog/artist_detail.html', {
+        'artist':artist,
+        'cast': cast,
+        'crew': crew,
+    })

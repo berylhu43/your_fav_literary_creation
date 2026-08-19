@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ artist.name }}{% endblock %}
+
+{% block content %}
+  <h1>{{ artist.name }}</h1>
+
+  <div style="width:185px">
+    {% if artist.profile_url %}
+      <img src="{{ artist.profile_url }}" alt="{{ artist.name }}" style="width:100%; display:block">
+    {% else %}
+      <img src="{% static 'catalog/img/person_placeholder_185.png' %}" alt="{{ artist.name }}" style="width:100%; display:block">
+    {% endif %}
+  </div>
+
+  <h2>Filmography</h2>
+  <h3>As Cast</h3>
+    <div style="display:flex; flex-wrap:wrap; gap:16px">
+        {% for work in cast %}
+        <div style="width:120px">
+            <div style="width:120px">
+            {% if work.poster_path %}
+                <img src="https://image.tmdb.org/t/p/w185{{ work.poster_path }}" alt="" style="width:100%; display:block">
+            {% else %}
+                <img src="{% static 'catalog/img/poster_placeholder_185.png' %}" alt="" style="width:100%; display:block">
+            {% endif %}
+            </div>
+
+            {% if work.media_type == 'tv' %}
+            <strong>{{ work.name }}</strong>
+            {% if work.first_air_date %}({{ work.first_air_date|slice:":4" }}){% endif %}
+            {% else %}
+            <strong>{{ work.title }}</strong>
+            {% if work.release_date %}({{ work.release_date|slice:":4" }}){% endif %}
+            {% endif %}
+
+            {% if work.character %}
+            <div style="color:#666; font-size:0.9em">as {{ work.character }}</div>
+            {% endif %}
+        </div>
+        {% empty %}
+        <p>No filmography found.</p>
+        {% endfor %}
+    </div>
+
+  <h3>As Crew</h3>
+    <div style="display:flex; flex-wrap:wrap; gap:16px">
+    {% for work in crew %}
+        <div style="width:120px">
+        <div style="width:120px">
+            {% if work.poster_path %}
+            <img src="https://image.tmdb.org/t/p/w185{{ work.poster_path }}" alt="" style="width:100%; display:block">
+            {% else %}
+            <img src="{% static 'catalog/img/poster_placeholder_185.png' %}" alt="" style="width:100%; display:block">
+            {% endif %}
+        </div>
+
+        {% if work.media_type == 'tv' %}
+            <strong>{{ work.name }}</strong>
+            {% if work.first_air_date %}({{ work.first_air_date|slice:":4" }}){% endif %}
+        {% else %}
+            <strong>{{ work.title }}</strong>
+            {% if work.release_date %}({{ work.release_date|slice:":4" }}){% endif %}
+        {% endif %}
+
+        {% if work.jobs %}
+            <div style="color:#666; font-size:0.9em">{{ work.jobs|join:", " }}</div>
+        {% endif %}
+        </div>
+    {% empty %}
+        <p>No crew credits.</p>
+    {% endfor %}
+    </div>
+{% endblock %}

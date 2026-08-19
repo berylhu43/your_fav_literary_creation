@@ -3,14 +3,15 @@
   <h3>{{ label }}</h3>
   <div style="display:flex; flex-wrap:wrap; gap:12px">
     {% for person in people %}
-      <div style="width:90px; text-align:center">
+      <a href="{% url 'catalog:artist_detail' pk=person.pk %}"
+         style="width:90px; text-align:center; text-decoration:none; color:inherit">
         {% if person.profile_url %}
-          <img src="{{ person.profile_url }}" alt="{{ person.name }}" style="width:100%">
+          <img src="{{ person.profile_url }}" alt="{{ person.name }}" style="width:100%; display:block">
         {% else %}
-          <img src="{% static 'catalog/img/person_placeholder_185.png' %}" alt="{{ person.name }}" style="width:100%">
+          <img src="{% static 'catalog/img/person_placeholder_185.png' %}" alt="{{ person.name }}" style="width:100%; display:block">
         {% endif %}
         <div>{{ person.name }}</div>
-      </div>
+      </a>
     {% endfor %}
   </div>
 {% endif %}
