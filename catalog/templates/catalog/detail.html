@@ -5,27 +5,23 @@
 {% block content %}
   <h1>{{ work.title }}</h1>
 
-  {% if work.cover_url %}
-    <img src="{{ work.cover_url }}" alt="{{ work.title }}" style="max-width:200px">
-  {% endif %}
+  <div style="display:flex; gap:20px; align-items:flex-start">
+    {% include 'catalog/_cover.html' with url=work.cover_url media_type=work.media_type width='200px' alt=work.title %}
 
-  <p>
-  {% if work.description %}
-    {{work.description}}
-  {% endif %}
-  </p>
-
-  <p>
-    Type: {{ work.get_media_type_display }}
-  </p>
-  <p>
-    {% if work.genres.all %}
-      Genres:
-      {% for genre in work.genres.all %}
-        {{ genre.name }}{% if not forloop.last %}, {% endif %}
-      {% endfor %}
-    {% endif %}
-  </p>
+    <div>
+      {% if work.description %}
+        <p>{{ work.description }}</p>
+      {% endif %}
+      <p>Type: {{ work.get_media_type_display }}</p>
+      {% if work.genres.all %}
+        <p>Genres:
+          {% for genre in work.genres.all %}
+            {{ genre.name }}{% if not forloop.last %}, {% endif %}
+          {% endfor %}
+        </p>
+      {% endif %}
+    </div>
+  </div>
 
   <h2>Your review</h2>
   {% if user.is_authenticated %}
