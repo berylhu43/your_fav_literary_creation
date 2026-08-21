@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Recommendations{% endblock %}
+{% block content %}
+  <h1>Recommended for you</h1>
+  <form method="get" onsubmit="return validateTypes(this)">
+    <input type="text" name="q" value="{{ query }}"
+           placeholder="What are you in the mood for?"
+           style="width:400px">
+    <label><input type="checkbox" name="media_type" value="movie"
+      {% if 'movie' in media_types %}checked{% endif %}> Movies</label>
+    <label><input type="checkbox" name="media_type" value="tv"
+      {% if 'tv' in media_types %}checked{% endif %}> TV</label>
+    <label><input type="checkbox" name="media_type" value="book"
+      {% if 'book' in media_types %}checked{% endif %}> Books</label>
+    <button type="submit">Recommend</button>
+  </form>
+  <script>
+  function validateTypes(form) {
+    const checked = form.querySelectorAll('input[name="media_type"]:checked');
+    if (checked.length === 0) {
+      alert('Please select at least one type');
+      return false;   // block submit
+    }
+    return true;
+  }
+  </script>
+  {% for rec in recommendations %}
+    <div>
+      <strong>{{ rec.title }}</strong>
+      {% if rec.media_type %}<span>({{ rec.media_type }})</span>{% endif %}
+      {% if rec.reason %}<p style="color:#666">{{ rec.reason }}</p>{% endif %}
+    </div>
+  {% empty %}
+    {% if query %}<p>No recommendations found.</p>{% endif %}
+  {% endfor %}
+{% endblock %}
