@@ -30,7 +30,9 @@
   </script>
   {% for rec in recommendations %}
     <div>
-      <strong>{{ rec.title }}</strong>
+      <a href="{% url 'recommendations:pick' %}?title={{ rec.title|urlencode }}&media_type={{ rec.media_type|urlencode }}">
+        <strong>{{ rec.title }}</strong>
+      </a>
       {% if rec.media_type %}<span>({{ rec.media_type }})</span>{% endif %}
       {% if rec.reason %}<p style="color:#666">{{ rec.reason }}</p>{% endif %}
     </div>

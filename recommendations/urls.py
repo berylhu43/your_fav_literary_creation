@@ -5,4 +5,5 @@ app_name = 'recommendations'
 
 urlpatterns = [
     path('', views.recommend, name='recommend'),
+    path('pick/', views.pick, name='pick'),
 ]

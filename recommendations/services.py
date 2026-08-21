@@ -1,7 +1,9 @@
+from django.core.cache import cache
 from datetime import date
 import json
+from catalog.clients import _tmdb_get, _google_books_get
 from reviews.models import Review
-from catalog.models import Genre
+from catalog.models import Genre, Catalog
 from .clients import _llm_get
 
 
@@ -13,15 +15,25 @@ def get_recommendations(user, query, media_types):
     Media type mutiple choice form, eg. ['movie', 'tv']
     Can be used for REST API or background tasks.
     """
+    # check cache
+    key = _recommend_cache_key(user, query, media_types)
+    cached = cache.get(key)
+    if cached is not None:
+        return cached\
 
     filters = _extract_filters(query, media_types)
     samples = _sample_reviews(user, filters, media_types)
     prompt = _build_recommend_prompt(query, media_types, samples)
     raw = _llm_get([{'role': 'user', 'content': prompt}])
-    print(f'>>> recommend prompt:\n{prompt}')
-    if raw is None:
-        return []
+    result = _parse(raw) if raw else []
+    cache.set(key, result, 60 * 60)
     return _parse(raw)
+
+# get cache
+def _recommend_cache_key(user, query, media_types):
+    types = ",".join(sorted(media_types))
+    q = query.strip().lower()
+    return f'rec:{user.id}:{types}:{q}'
 
 
 # First Step: extract filters from user query using LLM
@@ -168,3 +180,33 @@ def _parse(raw):
         return data.get('recommendations', [])
     except (json.JSONDecodeError, TypeError):
         return []
+
+
+def _resolve_external_id(title, media_type):
+    """
+    Resolve a title and media type to an external ID (e.g. TMDB ID).
+    Search in the Catalog DB first, if not found, search external APIs.
+    If not found, return None. 
+    Send to corresponding external API based on media_type.
+    """
+    # search in internal db first
+    local = Catalog.objects.filter(
+        title__iexact=title, 
+        media_type=media_type,
+    ).first()
+    if local and local.external_id:
+        return local.external_id
+
+    # if not found, search exteranl APIs
+    if media_type in ('movie', 'tv'):
+        data = _tmdb_get(f'/search/{media_type}', params={'query': title})
+        results = data.get('results', [])
+        if results:
+            return results[0].get('id')
+    elif media_type == 'book':
+        data = _google_books_get(title)
+        items = data.get('items', [])
+        if items:
+            return items[0].get('id')
+    return None
+

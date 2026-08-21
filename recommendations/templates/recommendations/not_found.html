@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block content %}
+  <p>Couldn't find "{{ title }}" — the AI may have suggested something that
+     isn't in our sources, or the title didn't match. Try another pick.</p>
+  <a href="{% url 'recommendations:recommend' %}">Back to recommendations</a>
+{% endblock %}

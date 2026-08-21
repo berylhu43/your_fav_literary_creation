@@ -176,6 +176,7 @@ Token usage is logged inside `_llm_get` (`resp.usage`), so both calls report pro
 - **TODO ⑤** — Balance sampling and generation by `media_type` (currently mixed: picking movie + book can yield all movies and no books).
 - **TODO ⑥** — Genre-name alignment: enforce the DB-sourced whitelist so extracted names always match `Genre.name` (§4.6).
 - **TODO ⑦** — Loading state for the slow two-call round-trip (§7).
+- **TODO ⑧** — Disambiguate title → external_id resolution. `_resolve_external_id` currently takes `results[0]` (the top search hit), which works well for now but can pick the wrong entry for same-name works or when the LLM's title differs slightly from the source's. Improve by matching on additional signal — e.g. have the LLM emit a `year` field with each recommendation, then match the search results by release year instead of blindly taking the first. (Quality is acceptable at present, so this is deferred.)
 
 ---
 
@@ -193,7 +194,7 @@ Token usage is logged inside `_llm_get` (`resp.usage`), so both calls report pro
 | Required media-type selection (front + back validation) | ✅ Implemented |
 | Plain-text display of recommendations | ✅ Implemented |
 | Genre whitelist enforcement | ✅ Implemented |
-| Click-to-persist (title → TMDB → `get_or_create_work`) | ⬜ TODO ④ |
+| Click-to-persist (title → TMDB → `get_or_create_work`) | ✅ Implemented |
 | Multi-turn interaction | ⬜ TODO ③ |
 | User taste store | ⬜ TODO ① |
 | Balanced sampling by media_type | ⬜ TODO ⑤ |

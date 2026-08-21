@@ -12,6 +12,11 @@ class Catalog(models.Model):
         TMDB = 'tmdb', 'TMDB'
         GOOGLE_BOOKS = 'googlebooks', 'Google Books'
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['title', 'media_type']),
+        ]
+
     media_type = models.CharField(max_length=10, choices=MediaType.choices)
     title = models.CharField(max_length=255)
     creator = models.CharField(max_length=255, blank=True)

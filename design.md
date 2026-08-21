@@ -303,6 +303,20 @@ feature this person" is a library-filtering act (local DB). Layering follows the
 Stage 2 pattern: `get_artist` (client) fetches; `_merge_crew` (service) dedupes
 crew by `(id, media_type)` and collapses multiple jobs into one entry.
 
+### 8.15 Composite index on Catalog (title, media_type)
+
+`_resolve_external_id` (recommendation click-through) looks up a work by exact
+title + media_type, a high-frequency query on a table that grows over time (the
+Catalog mirror, §8.10). A composite index `(title, media_type)` serves it:
+title first because it's the high-selectivity column (leftmost-prefix rule also
+lets this same index cover title-only exact lookups, so no separate title index
+is needed). Added while the table is small — cheap now, avoids a slow-query
+scramble and a lock-heavy index build later (same "add early what's expensive
+later" yardstick as §8.5). Note this index does NOT help the `icontains`
+searches (my_records, catalog search): a leading-wildcard `LIKE '%x%'` can't use
+a B-tree index — those would need full-text search, deferred until table size
+warrants it (and my_records is pre-filtered by user to a tiny set anyway).
+
 ---
 
 ## 9. Phased Delivery
@@ -348,6 +362,7 @@ The personal side (my records: list, edit, delete, search) is being completed wi
 - **Discovery filters** (cast / rating) — planned; implement in review app.
 - **Home page as the LLM surface** — planned.
 - **`recommendations` app** — planned.
+- **wishlist model**
 
 ### Even later / optional
 

@@ -16,12 +16,10 @@ def my_records(request):
     query = request.GET.get('q', '')
     if query:
         reviews = reviews.filter(catalog__title__icontains=query)
-
-        return render(request, 'reviews/my_records.html',{
-            'reviews': reviews,
-            'query': query,
+    return render(request, 'reviews/my_records.html', {
+        'reviews': reviews,
+        'query': query,
         })
-    return render(request, 'reviews/my_records.html', {'reviews': reviews})
 
 @login_required
 def delete_record(request, pk):
