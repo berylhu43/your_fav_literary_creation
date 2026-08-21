@@ -120,9 +120,10 @@ def _sample_reviews(user, filters, media_types, per_bucket=10):
         bucket = buckets.setdefault(key, [])
         if len(bucket) < per_bucket:
             bucket.append(review)
-    print(f'>>> sampled {len(buckets)} reviews: '
-      f'{[r.catalog.title for r in buckets.values()]}')
-    return [review for bucket in buckets.values() for review in bucket]
+    result = [review for bucket in buckets.values() for review in bucket]
+    print(f'>>> sampled {len(result)} reviews: '
+          f'{[r.catalog.title for r in result]}')
+    return result
 
 # Third Step: build prompt and query LLM for recommendations
 def _build_recommend_prompt(query, media_types, samples):

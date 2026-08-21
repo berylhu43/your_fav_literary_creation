@@ -333,7 +333,7 @@ The personal side (my records: list, edit, delete, search) is being completed wi
 
 ### Stage 3 — Discovery and recommendations — *in progress*
 
-Everything here depends on the rich data from Stage 2; none of it is possible on manually entered data.
+> **LLM recommendations** have their own design doc: [llm_design.md](./llm_design.md).
 
 **Done:**
 - **Catalog home as a discovery surface**: the home page now shows TMDB "popular movies" and "popular TV" poster walls (via `/movie/popular`, `/tv/popular`), replacing the old in-library list. Each poster links into the select → detail flow. Book discovery (no popular endpoint on Google Books) is planned via the NYT Bestseller API.
