@@ -403,6 +403,7 @@ The personal side (my records: list, edit, delete, search) is being completed wi
 | Book discovery via NYT Bestseller API | ⬜ Not yet |
 | Discovery filters (genre) — *Stage 3* | ✅ Implemented |
 | Artist detail page (TMDB combined_credits, cast + crew) | ✅ Implemented |
+| Composite index on Catalog (title, media_type) | ✅ Implemented |
 | Discovery filters (cast / rating) — *Stage 3* | ⬜ Not yet |
 | LLM recommendations / chat (home page) — *Stage 3* | 💭 Depends on Stage 2 |
 | React frontend | 💭 Possible future |

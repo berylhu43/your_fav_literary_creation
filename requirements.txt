@@ -8,3 +8,4 @@ requests==2.34.2
 sqlparse==0.5.5
 urllib3==2.7.0
 openai==3.3.1
+djangorestframework==3.18.0
