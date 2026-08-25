@@ -10,3 +10,11 @@ class ReviewSerializer(serializers.ModelSerializer):
         fields = ['id', 'catalog', 'title', 'media_type', 'rating', 
                   'review_text', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+# for work detail page, show public reviews with username instead of user id
+class PublicReviewSerializer(serializers.ModelSerializer):
+    user = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model = Review
+        fields = ['id', 'user', 'rating', 'review_text', 'created_at']
