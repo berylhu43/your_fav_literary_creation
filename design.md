@@ -40,6 +40,7 @@ The project is built primarily as a hands-on exercise to consolidate backend kno
 | External data (Stage 2) | **TMDB** (film/TV), **Google Books** (books), **NYT Books** (bestseller lists, planned) | Authoritative metadata sources. |
 | Caching (dev) | **Django LocMemCache** | Caches external API lists (e.g. popular feeds) with a TTL. |
 | Recommendations (later phase) | **LLM API** | Reads stored ratings/reviews as input. |
+| API layer | **Django REST Framework** | Grows on the service layer (§8.16); token auth; serves a future React frontend. |
 
 ---
 
@@ -317,6 +318,46 @@ searches (my_records, catalog search): a leading-wildcard `LIKE '%x%'` can't use
 a B-tree index — those would need full-text search, deferred until table size
 warrants it (and my_records is pre-filtered by user to a tiny set anyway).
 
+### 8.16 REST API layer via DRF, reusing the service layer
+
+A REST API (Django REST Framework) is added alongside the HTML views, in
+preparation for a decoupled React frontend. The key point: **it is not a rewrite
+— it grows on top of the existing service layer (§8.7).** Two view layers (HTML
+templates and DRF) share one set of services and models; the API view is as thin
+as the HTML view, only translating HTTP/JSON into service calls.
+
+- **Serializer replaces the template's role.** A template turns a model object
+  into HTML; a serializer turns it into JSON. Same job (data → output format),
+  different format. `ReviewSerializer` exposes `catalog` (writable, the client
+  sends a work id on create) and pulls `title` / `media_type` across the FK as
+  read-only convenience fields (`source='catalog.title'`), so one request carries
+  the display name without a second lookup.
+- **One `ModelViewSet` + router replaces the four HTML review views.** In REST,
+  list / retrieve / create / update / delete are one resource's five operations,
+  not five URLs — `/api/reviews/` (GET list, POST create) and
+  `/api/reviews/<pk>/` (GET / PUT / PATCH / DELETE), distinguished by HTTP method.
+  `get_queryset` filtered by `user=request.user` does double duty: it scopes the
+  list *and* enforces per-object permission (another user's review isn't in the
+  queryset, so it 404s) — replacing the hand-written `get_object_or_404(..., user=)`
+  guard in every HTML view.
+- **Create is customized to reuse `upsert_review` (§8.8).** `perform_create` calls
+  the same service the HTML `add` flow uses, so the "one review per user per work,
+  re-submit updates" semantics are identical across both frontends. `user` is
+  forced to `request.user` (never trusted from the request body). The upserted
+  object is assigned back to `serializer.instance` so the response serializes the
+  real saved row (with DB-generated `id` / `created_at`), not an echo of the input.
+- **Token authentication, not session.** In preparation for a separate-origin SPA,
+  the API uses DRF `TokenAuthentication`: the client exchanges credentials at
+  `/api/token/` for a token, then sends it in the `Authorization: Token <…>` header
+  on each request. Credentials live in the header (not URL params — those get
+  logged; not the body — GET has none), and are protected in transit by HTTPS in
+  production.
+- **REST request anatomy** (a reusable rule): the resource id goes in the **URL**
+  ("which review to operate on" — retrieve/update/delete); creation data goes in
+  the **body** (the `catalog` id on create is *content* of the new review);
+  filters go in **params** (`?q=…`). The review id is always "which one"; the
+  catalog id is body-content only at create time.
+
 ---
 
 ## 9. Phased Delivery
@@ -364,9 +405,27 @@ The personal side (my records: list, edit, delete, search) is being completed wi
 - **`recommendations` app** — planned.
 - **wishlist model**
 
-### Even later / optional
+### Stage 4 — REST API layer (for React frontend) — *in progress*
 
-- Possible React frontend (backend grows a REST API layer).
+The service layer (§8.7) pays off again: the API grows on top of it, HTML views
+untouched. See §8.16 for the design decisions.
+
+**Done:**
+- DRF installed; `TokenAuthentication` + `IsAuthenticated` as defaults.
+- `/api/token/` — credentials → token (DRF `obtain_auth_token`).
+- `reviews` API: full CRUD via `ReviewViewSet` (`ModelViewSet`) + `DefaultRouter`
+  at `/api/reviews/`. `ReviewSerializer` carries writable `catalog` + read-only
+  `title` / `media_type`. `perform_create` reuses `upsert_review`; per-object
+  permission via user-scoped `get_queryset`. Verified end-to-end (list / retrieve
+  / create / update / delete / upsert-on-repeat / cross-user 404) via Postman.
+
+**Planned:**
+- `catalog` API (browse / search works) — needed by the React frontend; create
+  path reuses `get_or_create_work`.
+- `recommendations` API.
+- Auth flow for a separate-origin SPA (CORS, possibly JWT instead of token).
+- React frontend consuming these endpoints.
+
 
 ---
 
@@ -406,7 +465,11 @@ The personal side (my records: list, edit, delete, search) is being completed wi
 | Composite index on Catalog (title, media_type) | ✅ Implemented |
 | Discovery filters (cast / rating) — *Stage 3* | ⬜ Not yet |
 | LLM recommendations / chat (home page) — *Stage 3* | 💭 Depends on Stage 2 |
-| React frontend | 💭 Possible future |
+| REST API — DRF setup + token auth (`/api/token/`) | ✅ Implemented |
+| REST API — reviews full CRUD (`ReviewViewSet` + router) | ✅ Implemented |
+| REST API — catalog endpoints | ⬜ Not yet |
+| REST API — recommendations endpoints | ⬜ Not yet |
+| React frontend | 💭 Future (Stage 4, after core endpoints) |
 
 *Legend: ✅ implemented · 🚧 in progress · ⬜ planned, not started · 📐 designed, not implemented · 💭 future / blocked on earlier stage*
 
