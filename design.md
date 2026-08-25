@@ -410,6 +410,8 @@ The personal side (my records: list, edit, delete, search) is being completed wi
 The service layer (§8.7) pays off again: the API grows on top of it, HTML views
 untouched. See §8.16 for the design decisions.
 
+> **React Frontend Desing** have their own design doc: [frontend map.md](./frontend_map.md).
+
 **Done:**
 - DRF installed; `TokenAuthentication` + `IsAuthenticated` as defaults.
 - `/api/token/` — credentials → token (DRF `obtain_auth_token`).
