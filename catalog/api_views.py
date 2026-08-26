@@ -1,14 +1,15 @@
 from rest_framework import generics, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import Catalog
-from .serializers import CatalogSerializer
+from django.shortcuts import get_object_or_404
+from .models import Catalog, Artist
+from .serializers import CatalogSerializer, ArtistSerializer
 from reviews.models import Review
 from reviews.serializers import PublicReviewSerializer
 from .services import (
     get_popular_movies, get_popular_tv,
     get_cached_movie_genres, get_cached_tv_genres,
-    search_external, get_or_create_work
+    search_external, get_or_create_work, get_artist_filmography
 )
 
 # *** select work and add to database
@@ -66,6 +67,7 @@ class CatalogSearchAPI(APIView):
         media_type = request.query_params.get('media_type', 'movie')
         return Response(search_external(query=query, media_type=media_type))
 
+
 # *** popular movie and tv views ***
 class CatalogPopularMovieAPI(APIView):
     permission_classes = [permissions.AllowAny]
@@ -85,4 +87,17 @@ class CatalogPopularTVAPI(APIView):
         return Response({
             'tv': get_popular_tv(genre_tv),
             'genres_tv': get_cached_tv_genres(),
+        })
+
+
+# *** artist detail page view ***
+class ArtistDetailAPI(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, pk):
+        artist = get_object_or_404(Artist, pk=pk)
+        filmography = get_artist_filmography(artist)   
+        return Response({
+            'artist': ArtistSerializer(artist).data,
+            **filmography,      
         })

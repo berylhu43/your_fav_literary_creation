@@ -14,28 +14,30 @@
   </div>
 
   <h2>Filmography</h2>
+
+  {% if not has_filmography %}
+    <p style="color:#666">
+        Filmography isn't available for book authors — we only have their books in the catalog.
+    </p>
+  {% else %}
+
   <h3>As Cast</h3>
     <div style="display:flex; flex-wrap:wrap; gap:16px">
         {% for work in cast %}
         <div style="width:120px">
         <div style="width:120px">
-            <a href="{% url 'catalog:select_work' media_type=work.media_type external_id=work.id %}">
-                {% if work.poster_path %}
-                <img src="https://image.tmdb.org/t/p/w185{{ work.poster_path }}" alt="" style="width:100%; display:block">
+            <a href="{% url 'catalog:select_work' media_type=work.media_type external_id=work.external_id %}">
+                {% if work.poster_url %}
+                <img src="{{ work.poster_url }}" alt="" style="width:100%; display:block">
                 {% else %}
                 <img src="{% static 'catalog/img/poster_placeholder_185.png' %}" alt="" style="width:100%; display:block">
                 {% endif %}
             </a>
         </div>
 
-            {% if work.media_type == 'tv' %}
-            <strong>{{ work.name }}</strong>
-            {% if work.first_air_date %}({{ work.first_air_date|slice:":4" }}){% endif %}
-            {% else %}
             <strong>{{ work.title }}</strong>
-            {% if work.release_date %}({{ work.release_date|slice:":4" }}){% endif %}
-            {% endif %}
-
+            {% if work.year %}({{ work.year }}){% endif %}
+            
             {% if work.character %}
             <div style="color:#666; font-size:0.9em">as {{ work.character }}</div>
             {% endif %}
@@ -50,21 +52,16 @@
     {% for work in crew %}
         <div style="width:120px">
         <div style="width:120px">
-            {% if work.poster_path %}
-            <img src="https://image.tmdb.org/t/p/w185{{ work.poster_path }}" alt="" style="width:100%; display:block">
-            {% else %}
-            <img src="{% static 'catalog/img/poster_placeholder_185.png' %}" alt="" style="width:100%; display:block">
-            {% endif %}
+            <a href="{% url 'catalog:select_work' media_type=work.media_type external_id=work.external_id %}">
+                {% if work.poster_url %}
+                <img src="{{ work.poster_url }}" alt="" style="width:100%; display:block">
+                {% else %}
+                <img src="{% static 'catalog/img/poster_placeholder_185.png' %}" alt="" style="width:100%; display:block">
+                {% endif %}
+            </a>
         </div>
-
-        {% if work.media_type == 'tv' %}
-            <strong>{{ work.name }}</strong>
-            {% if work.first_air_date %}({{ work.first_air_date|slice:":4" }}){% endif %}
-        {% else %}
-            <strong>{{ work.title }}</strong>
-            {% if work.release_date %}({{ work.release_date|slice:":4" }}){% endif %}
-        {% endif %}
-
+        <strong>{{ work.title }}</strong>
+        {% if work.year %}({{ work.year }}){% endif %}
         {% if work.jobs %}
             <div style="color:#666; font-size:0.9em">{{ work.jobs|join:", " }}</div>
         {% endif %}
@@ -73,4 +70,6 @@
         <p>No crew credits.</p>
     {% endfor %}
     </div>
+
+{% endif %}
 {% endblock %}

@@ -208,6 +208,42 @@ def _merge_crew(crew):
     result.sort(key=lambda c: c.get('popularity') or 0, reverse=True)
     return result
 
+## *** artist slim helper and artist detail***
+def _slim_credit_work(item):
+    # only return the required fields for artist search
+    media_type = item.get('media_type')
+    poster_path = item.get('poster_path')
+
+    if media_type == 'tv':
+        title = item.get('name', '')
+        date = item.get('first_air_date') or ''
+    else:
+        title = item.get('title', '')
+        date = item.get('release_date') or ''
+
+    return {
+        'external_id': item.get('id'),
+        'media_type': media_type,
+        'title': title,
+        'year': date[:4] if date[:4].isdigit() else None,
+        'poster_url': f'https://image.tmdb.org/t/p/w185{poster_path}' if poster_path else '',
+        'character': item.get('character'),  
+        'jobs': item.get('jobs'), 
+    }
+
+def get_artist_filmography(artist):
+    # if artist is from tmdb, get filmography; otherwise, return empty
+    if artist.source != Catalog.Source.TMDB or not artist.external_id:
+        return {'cast': [], 'crew': [], 'has_filmography': False}
+
+    cast, crew = clients.get_artist(artist.external_id)
+    crew = _merge_crew(crew)
+    return {
+        'cast': [_slim_credit_work(c) for c in cast],
+        'crew': [_slim_credit_work(c) for c in crew],
+        'has_filmography': True,
+    }
+
 
 ## *** search services ***
 def _slim_movie_result(item):

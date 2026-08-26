@@ -351,6 +351,18 @@ The catalog detail API exposes cast/crew via a nested `ArtistSerializer` inside
 
 The `creator` text field (§8.6's Stage-1 stand-in) is superseded by Artist/Credit and dropped from the serializer output; the DB column remains pending a cleanup migration (deferred — may hold manual-entry data; the manual add flow may still reference it).
 
+### 8.18 Artist capabilities are source-dependent
+
+The `Artist` table stores people from two sources (TMDB cast/crew; Google Books
+authors), but they are not capability-symmetric. TMDB artists have an
+`external_id` (person id) and a filmography via `combined_credits`; Google Books
+authors have neither (Google Books has no "author's works" endpoint), so they are stored with an empty `external_id`. Any TMDB-specific operation on an artist
+(filmography, and future TMDB-only features) must first check `source` /
+`external_id` and degrade gracefully — the artist-detail API returns basic info
+with an empty filmography and `has_filmography: false` for non-TMDB artists,
+rather than calling TMDB with an empty id. Unified storage (§8.4) does not imply
+unified capability.
+
 ---
 
 ## 9. Phased Delivery

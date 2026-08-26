@@ -4,12 +4,11 @@ from django.db.models import Avg
 from django.core.cache import cache
 from reviews.models import Review
 from .forms import AddEntryForm
-from .services import (get_or_create_work, _merge_crew, 
+from .services import (get_or_create_work, get_artist_filmography, 
                        get_cached_tv_genres, get_popular_tv, 
                        get_cached_movie_genres, get_popular_movies, 
                        search_external)
 from .models import Catalog, Artist
-from .clients import get_artist
 
 @login_required
 def add_entry(request):
@@ -104,10 +103,10 @@ def select_work(request, external_id, media_type):
 
 def artist_detail(request, pk):
     artist = get_object_or_404(Artist, pk=pk)
-    cast, crew = get_artist(artist.external_id)
-    crew = _merge_crew(crew)
+    filmography = get_artist_filmography(artist)     
     return render(request, 'catalog/artist_detail.html', {
-        'artist':artist,
-        'cast': cast,
-        'crew': crew,
+        'artist': artist,
+        'cast': filmography['cast'],
+        'crew': filmography['crew'],
+        'has_filmography': filmography['has_filmography'],
     })
