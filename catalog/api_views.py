@@ -1,4 +1,4 @@
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Catalog
@@ -8,8 +8,33 @@ from reviews.serializers import PublicReviewSerializer
 from .services import (
     get_popular_movies, get_popular_tv,
     get_cached_movie_genres, get_cached_tv_genres,
-    search_external,   
+    search_external, get_or_create_work
 )
+
+# *** select work and add to database
+class CatalogSelectAPI(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        external_id = request.data.get('external_id')
+        media_type = request.data.get('media_type')
+
+        # two required fields
+        if not external_id or not media_type:
+            return Response(
+                {'error': 'external_id and media_type are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        work = get_or_create_work(media_type=media_type, external_id=external_id)
+        if work is None:
+            return Response(
+                {'error': 'Could not fetch this work.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(CatalogSerializer(work).data)
+        
 
 
 # *** detail page views ***
