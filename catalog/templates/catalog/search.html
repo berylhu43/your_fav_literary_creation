@@ -19,36 +19,36 @@
     <div>
     {% if media_type == 'book' %}
       <div style="width:92px">
-        {% if item.volumeInfo.imageLinks.thumbnail %}
-          <img src="{{ item.volumeInfo.imageLinks.thumbnail }}" alt="" style="width:100%; display:block">
+        {% if item.poster_url %}
+          <img src="{{ item.poster_url }}" alt="" style="width:100%; display:block">
         {% else %}
           <img src="{% static 'catalog/img/book_placeholder_128.png' %}" alt="" style="width:100%; display:block">
         {% endif %}
       </div>
-      <strong>{{ item.volumeInfo.title }}</strong>
-      ({{ item.volumeInfo.publishedDate|slice:":4" }})
+      <strong>{{ item.title }}</strong>
+      ({{ item.year|slice:":4" }})
     {% elif media_type == 'tv' %}
       <div style="width:92px">
-        {% if item.poster_path %}
-          <img src="https://image.tmdb.org/t/p/w92{{ item.poster_path }}" alt="" style="width:100%; display:block">
-        {% else %}
-          <img src="{% static 'catalog/img/poster_placeholder_185.png' %}" alt="" style="width:100%; display:block">
-        {% endif %}
-      </div>
-      <strong>{{ item.name }}</strong>
-      ({{ item.first_air_date|slice:":4" }})
-    {% else %}
-      <div style="width:92px">
-        {% if item.poster_path %}
-          <img src="https://image.tmdb.org/t/p/w92{{ item.poster_path }}" alt="" style="width:100%; display:block">
+        {% if item.poster_url %}
+          <img src="{{ item.poster_url }}" alt="" style="width:100%; display:block">
         {% else %}
           <img src="{% static 'catalog/img/poster_placeholder_185.png' %}" alt="" style="width:100%; display:block">
         {% endif %}
       </div>
       <strong>{{ item.title }}</strong>
-      ({{ item.release_date|slice:":4" }})
+      ({{ item.year|slice:":4" }})
+    {% else %}
+      <div style="width:92px">
+        {% if item.poster_url %}
+          <img src="{{ item.poster_url }}" alt="" style="width:100%; display:block">
+        {% else %}
+          <img src="{% static 'catalog/img/poster_placeholder_185.png' %}" alt="" style="width:100%; display:block">
+        {% endif %}
+      </div>
+      <strong>{{ item.title }}</strong>
+      ({{ item.year|slice:":4" }})
     {% endif %}
-    <a href="{% url 'catalog:select_work' media_type=media_type external_id=item.id %}">Select</a>
+    <a href="{% url 'catalog:select_work' media_type=media_type external_id=item.external_id %}">Select</a>
   </div>
   {% empty %}
     {% if query %}

@@ -1,4 +1,5 @@
 from django.utils.html import strip_tags
+from django.core.cache import cache
 from .models import Catalog, Genre, Artist, Credit
 from . import clients
 
@@ -206,3 +207,94 @@ def _merge_crew(crew):
     result = list(merged.values())
     result.sort(key=lambda c: c.get('popularity') or 0, reverse=True)
     return result
+
+
+## *** search services ***
+def _slim_movie_result(item):
+    poster_path = item.get('poster_path')
+    release_date = item.get('release_date') or ''
+    return {
+        'external_id': item.get('id'),
+        'media_type': 'movie',
+        'title': item.get('title', ''),
+        'year': release_date[:4] if release_date[:4].isdigit() else None,
+        'poster_url': f'https://image.tmdb.org/t/p/w185{poster_path}' if poster_path else '',
+    }
+
+
+def _slim_tv_result(item):
+    poster_path = item.get('poster_path')
+    first_air = item.get('first_air_date') or ''
+    return {
+        'external_id': item.get('id'),
+        'media_type': 'tv',
+        'title': item.get('name', ''),          # tv 是 name
+        'year': first_air[:4] if first_air[:4].isdigit() else None,
+        'poster_url': f'https://image.tmdb.org/t/p/w185{poster_path}' if poster_path else '',
+    }
+
+
+def _slim_book_result(item):
+    info = item.get('volumeInfo', {})
+    published = info.get('publishedDate') or ''
+    image_links = info.get('imageLinks', {})
+    return {
+        'external_id': item.get('id'),
+        'media_type': 'book',
+        'title': info.get('title', ''),
+        'year': published[:4] if published[:4].isdigit() else None,
+        'poster_url': image_links.get('thumbnail', ''),
+    }
+
+def search_external(*, query, media_type):
+    if not query:
+        return []
+    if media_type == 'tv':
+        results = clients.search_tv(query)
+        return [_slim_tv_result(r) for r in results]
+    elif media_type == 'book':
+        results = clients.search_books(query)
+        return [_slim_book_result(r) for r in results]
+    else:
+        results = clients.search_movies(query)
+        return [_slim_movie_result(r) for r in results]
+
+
+## *** popular movie and tv services with cache ***
+def get_popular_movies(genre_id=''):
+    """
+    Get popular movies from TMDB, optionally filtered by genre_id.
+    """
+    if genre_id:
+        return clients.discover_movies(genre_id=genre_id)
+    movies = cache.get('popular_movies')
+    if movies is None:
+        movies = clients.discover_movies()
+        cache.set('popular_movies', movies, 60 * 60) # Cache for 1 hour
+    return movies
+
+def get_popular_tv(genre_id=''):
+    if genre_id:
+        return clients.discover_tv(genre_id=genre_id)
+    tv = cache.get('popular_tv')
+    if tv is None:
+        tv = clients.discover_tv()
+        cache.set('popular_tv', tv, 60 * 60)
+    return tv
+
+# *** genre list from TMDB api with cache ***
+def get_cached_movie_genres():
+    genres = cache.get('movie_genres')
+    if genres is None:
+        genres = clients.get_movie_genres()
+        cache.set('movie_genres', genres, 60 * 60)
+    return genres
+
+def get_cached_tv_genres():
+    genres = cache.get('tv_genres')
+    if genres is None:
+        genres = clients.get_tv_genres()
+        cache.set('tv_genres', genres, 60 * 60)
+    return genres
+
+    

@@ -16,14 +16,18 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from django.views.generic import TemplateView
+from rest_framework.authtoken.views import obtain_auth_token
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # HTML
     path('', include('recommendations.urls')),
     path('accounts/', include('accounts.urls')),
     path('catalog/', include('catalog.urls')),
     path('reviews/', include('reviews.urls')),
-    path('api/', include('config.api_urls')),
+    # API
+    path('api/token/', obtain_auth_token, name='api_token'),
+    path('api/catalog/', include('catalog.api_urls')),   # catalog API
+    path('api/', include('reviews.api_urls')),  # review API
 ]

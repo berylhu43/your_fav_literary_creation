@@ -140,4 +140,6 @@ def get_artist(external_id):
     crew = data.get('crew', [])
     cast.sort(key=lambda c: c.get('popularity') or 0, reverse=True)
     return cast, crew
-    
+
+
+
