@@ -30,4 +30,5 @@ urlpatterns = [
     path('api/token/', obtain_auth_token, name='api_token'),
     path('api/catalog/', include('catalog.api_urls')),   # catalog API
     path('api/', include('reviews.api_urls')),  # review API
+    path('api/recommendations/', include('recommendations.api_urls')),  # recommendation API
 ]

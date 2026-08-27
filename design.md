@@ -215,9 +215,9 @@ erDiagram
 
 ---
 
-## 8. Key Design Decisions
+## 8. Key Design Decisions## 8. Key Design Decisions
 
-Each decision is recorded with its rationale so the reasoning survives for future readers (including a future self with no context).
+Each decision is recorded with its rationale so the reasoning survives for future readers (including a future self with no context). Decisions state *what* and *why*; *how* it was built lives in §9.
 
 ### 8.1 Use `django.contrib.auth`; do not build a custom User
 
@@ -247,7 +247,7 @@ The artist ↔ work relationship is many-to-many (a director has many films; a f
 
 ### 8.7 Isolate data-fetching in a service layer (`get_or_create_work()`)
 
-The logic for creating/reusing a `Catalog` record lives in `catalog/services.py`, not in the view. In Stage 1 it does a local `get_or_create`; in Stage 2 only this function's internals change (check local first, then call the API). Views, review logic, and templates stay untouched. **This is the single seam between the two stages** — the payoff of keeping business logic out of views.
+The logic for creating/reusing a `Catalog` record lives in `catalog/services.py`, not in the view. In Stage 1 it does a local `get_or_create`; in Stage 2 only this function's internals change (check local first, then call the API). Views, review logic, and templates stay untouched. **This is the single seam between the two stages** — the payoff of keeping business logic out of views. (This same seam later lets a REST API grow on top without a rewrite — §8.16.)
 
 ### 8.8 Enforce `UniqueConstraint(user, catalog)` from the start; use `update_or_create` (upsert)
 
@@ -262,19 +262,11 @@ Industrial-standard practice: referencing the setting (rather than importing `Us
 Three models were considered:
 - **Manual entry** — users type all metadata. Rejected: uncontrolled data quality (three spellings of the same director create three "different" works).
 - **Fixed pre-load** — a static imported set. Rejected: too limiting; users' works won't be in it.
-- **API-with-caching (chosen for Stage 2)** — on search, check the local `Catalog`; if absent, fetch from TMDB / Open Library, store it (cache), and point the review at it. The second user recording the same work reuses the cached row. `Catalog` becomes an ever-more-complete local mirror.
+- **API-with-caching (chosen for Stage 2)** — on search, check the local `Catalog`; if absent, fetch from TMDB / Google Books, store it (cache), and point the review at it. The second user recording the same work reuses the cached row. `Catalog` becomes an ever-more-complete local mirror.
 
-Stage 1 uses manual entry deliberately — as scaffolding that mimics the Stage 2 shape — while the real de-duplication is solved later via `external_id`. 
+Stage 1 uses manual entry deliberately — as scaffolding that mimics the Stage 2 shape — while the real de-duplication is solved later via `external_id`.
 
-Stage 3 decision:
-
-**Corollary — a Catalog row carries no personal meaning.** Because `Catalog` is a
-pure mirror, a row's mere existence means only "this work has been cached," never
-"someone wants it." All personal/collection semantics live in `Review` (§8.2), not
-in "is it in Catalog." This is why "browse = persist" is safe: clicking a poster
-(search or artist detail) calls `select_work`, which persists on click by design —
-more rows just mean fewer future API calls, and can never pollute recommendations,
-lists, or stats, all of which read from `Review`.
+**Corollary — a Catalog row carries no personal meaning.** Because `Catalog` is a pure mirror, a row's existence means only "this work has been cached," never "someone wants it." All personal/collection semantics live in `Review` (§8.2), not in "is it in Catalog." This is why "browse = persist" is safe: clicking a poster (search or artist detail) persists on click by design — more rows just mean fewer future API calls, and can never pollute recommendations, lists, or stats, which all read from `Review`.
 
 ### 8.11 Seed genres via a data migration
 
@@ -282,171 +274,125 @@ Initial genre data is loaded through a **data migration** (`RunPython`), not ent
 
 ### 8.12 De-duplication key: `title` + `media_type` now, `external_id` later
 
-`get_or_create` conditions must be required, stable, always-present fields. `release_year` is nullable, so putting it in the query condition would break de-duplication (a work with a year and the same work without one wouldn't match, creating duplicates). Stage 1 therefore de-duplicates on `title` + `media_type` (both required); precise version-level distinction is deferred to Stage 2's `external_id`, where it is solved correctly. *(Stage 2 status: now implemented — de-duplication keys on `source` + `external_id`.)*
+`get_or_create` conditions must be required, stable, always-present fields. `release_year` is nullable, so putting it in the query condition would break de-duplication (a work with a year and the same work without one wouldn't match, creating duplicates). Stage 1 therefore de-duplicates on `title` + `media_type` (both required); precise version-level distinction is deferred to Stage 2's `external_id`. *(Stage 2 status: implemented — de-duplication keys on `source` + `external_id`.)*
 
 ### 8.13 Work detail page as the operation hub; browse public, act logged-in
 
-The work detail page is the single place a user acts on a work. Instead of scattering add/edit/delete controls across list pages, the detail page shows, based on the viewer's state: not logged in → a prompt to log in; logged in but hasn't reviewed → "Add my review"; already reviewed → their rating plus Edit/Delete. The "my records" list is therefore read-only navigation — clicking a title opens the detail page, where the actions live. This keeps each action's view single-purpose (add / change / delete stay distinct) and gives users one predictable place to manage a work.
+The work detail page is the single place a user acts on a work: not logged in → prompt to log in; logged in but hasn't reviewed → "Add my review"; already reviewed → their rating plus Edit/Delete. The "my records" list is therefore read-only navigation — clicking a title opens the detail page, where the actions live. This keeps each action's view single-purpose and gives users one predictable place to manage a work.
 
 Two supporting decisions:
-- **Public browse, authenticated action.** Search, browse, and viewing a work's detail need no login (`@login_required` is absent from those views); only creating/editing/deleting a review requires it. This matches the public + personal positioning and lowers the barrier to explore before signing up.
-- **Select persists first, then routes to detail.** Selecting a movie from TMDB search first calls `get_or_create_work` to persist (cache) the `Catalog` row, then redirects to that work's detail page by `pk`. Because the work is guaranteed to exist by then, the downstream "add my review" view takes the work's `pk` (not a TMDB id) and does not re-fetch — TMDB fetching lives only in the select step, keeping the rating step purely internal.
+- **Public browse, authenticated action.** Search, browse, and viewing detail need no login; only creating/editing/deleting a review does. This matches the public + personal positioning and lowers the barrier to explore before signing up.
+- **Select persists first, then routes to detail.** Selecting a work from search first persists (caches) the `Catalog` row, then routes to detail by `pk`. The downstream rating step takes the `pk` and never re-fetches — external fetching lives only in the select step.
 
-### 8.14 Artist detail reads live from TMDB, not from the local library
+### 8.14 Artist detail reads live from TMDB; catalog detail reads local
 
-Clicking a person shows their *full* filmography, so the data source is TMDB's
-`combined_credits` endpoint (live), not the local `Credit` table. This is the
-deliberate inverse of the planned cast **discovery filter** (§9 Stage 3), which
-will read from the local library (`Catalog` filtered by `credit__artist`) to show
-only already-collected works. Same entity (`Artist`), opposite data source:
-"everything this person made" is a catalog-browsing act (TMDB); "which of my works
-feature this person" is a library-filtering act (local DB). Layering follows the
-Stage 2 pattern: `get_artist` (client) fetches; `_merge_crew` (service) dedupes
-crew by `(id, media_type)` and collapses multiple jobs into one entry.
+Two symmetrical decisions about where cast/crew data comes from:
+
+- **Artist detail** shows a person's *full* filmography, which can't be pre-stored (too large, changes over time), so it reads **live** from TMDB `combined_credits`.
+- **Catalog detail** shows *who is in one work*, which is known and stored at ingest time, so it reads the **local `Credit` table** — no external call.
+
+Same entity (`Artist`), opposite direction: "everything this person made" is a live catalog-browsing act; "who's in this work" is a local lookup. This is also the deliberate inverse of the planned cast **discovery filter** (§9), which reads the local library (`Catalog` filtered by `credit__artist`) to show only collected works. One observable consequence: catalog detail works offline; artist detail does not.
 
 ### 8.15 Composite index on Catalog (title, media_type)
 
-`_resolve_external_id` (recommendation click-through) looks up a work by exact
-title + media_type, a high-frequency query on a table that grows over time (the
-Catalog mirror, §8.10). A composite index `(title, media_type)` serves it:
-title first because it's the high-selectivity column (leftmost-prefix rule also
-lets this same index cover title-only exact lookups, so no separate title index
-is needed). Added while the table is small — cheap now, avoids a slow-query
-scramble and a lock-heavy index build later (same "add early what's expensive
-later" yardstick as §8.5). Note this index does NOT help the `icontains`
-searches (my_records, catalog search): a leading-wildcard `LIKE '%x%'` can't use
-a B-tree index — those would need full-text search, deferred until table size
-warrants it (and my_records is pre-filtered by user to a tiny set anyway).
+Persist-on-click looks up a work by exact title + media_type — a high-frequency query on a table that grows over time (§8.10). A composite index `(title, media_type)` serves it, title first (high-selectivity column; leftmost-prefix also covers title-only exact lookups, so no separate title index is needed). Added while the table is small — cheap now, avoids a slow-query scramble and a lock-heavy index build later (same yardstick as §8.5). It does **not** help the `icontains` searches (my_records, catalog search): a leading-wildcard `LIKE '%x%'` can't use a B-tree index — those would need full-text search, deferred until table size warrants it.
 
-### 8.16 REST API layer via DRF, reusing the service layer
+### 8.16 REST API via DRF, reusing the service layer
 
-A REST API (Django REST Framework) is added alongside the HTML views, in
-preparation for a decoupled React frontend. The key point: **it is not a rewrite
-— it grows on top of the existing service layer (§8.7).** Two view layers (HTML
-templates and DRF) share one set of services and models; the API view is as thin
-as the HTML view, only translating HTTP/JSON into service calls.
+A REST API (Django REST Framework) is added alongside the HTML views for a future decoupled React frontend. **It is not a rewrite — it grows on the service layer (§8.7):** both view layers (templates and DRF) share one set of services and models, each view thin. A serializer plays the template's role (model → JSON instead of model → HTML). Writes reuse existing services (`upsert_review`, `get_or_create_work`); read scoping and per-object permission reuse user-scoped querysets. Authentication is `TokenAuthentication` rather than session, in preparation for a separate-origin SPA. Endpoint mechanics (viewset/router choices, request-shape conventions, serializer specifics) are recorded in §9 Stage 4.
 
-- **Serializer replaces the template's role.** A template turns a model object
-  into HTML; a serializer turns it into JSON. Same job (data → output format),
-  different format. `ReviewSerializer` exposes `catalog` (writable, the client
-  sends a work id on create) and pulls `title` / `media_type` across the FK as
-  read-only convenience fields (`source='catalog.title'`), so one request carries the display name without a second lookup.
-- **One `ModelViewSet` + router replaces the four HTML review views.** In REST,
-  list / retrieve / create / update / delete are one resource's five operations,
-  not five URLs — `/api/reviews/` (GET list, POST create) and
-  `/api/reviews/<pk>/` (GET / PUT / PATCH / DELETE), distinguished by HTTP method.
-  `get_queryset` filtered by `user=request.user` does double duty: it scopes the
-  list *and* enforces per-object permission (another user's review isn't in the
-  queryset, so it 404s) — replacing the hand-written `get_object_or_404(..., user=)` guard in every HTML view.
-- **Create is customized to reuse `upsert_review` (§8.8).** `perform_create` calls the same service the HTML `add` flow uses, so the "one review per user per work, re-submit updates" semantics are identical across both frontends. `user` is forced to `request.user` (never trusted from the request body). The upserted object is assigned back to `serializer.instance` so the response serializes the real saved row (with DB-generated `id` / `created_at`), not an echo of the input.
-- **Token authentication, not session.** In preparation for a separate-origin SPA, the API uses DRF `TokenAuthentication`: the client exchanges credentials at `/api/token/` for a token, then sends it in the `Authorization: Token <…>` header on each request. Credentials live in the header (not URL params — those get logged; not the body — GET has none), and are protected in transit by HTTPS in production.
-- **REST request anatomy** (a reusable rule): the resource id goes in the **URL** ("which review to operate on" — retrieve/update/delete); creation data goes in the **body** (the `catalog` id on create is *content* of the new review); filters go in **params** (`?q=…`). The review id is always "which one"; the catalog id is body-content only at create time.
+### 8.17 Artist capabilities are source-dependent
 
-### 8.17 Catalog detail serializes credits from the local Credit table
+The `Artist` table holds people from two sources (TMDB cast/crew; Google Books authors) but they are **not capability-symmetric**: TMDB artists have a person id and a filmography (`combined_credits`); Google Books authors have neither (Google Books has no "author's works" endpoint) and are stored with an empty `external_id`. So any TMDB-specific operation on an artist first checks `source` / `external_id` and degrades gracefully — artist detail returns basic info with an empty filmography and a `has_filmography: false` flag for non-TMDB artists, rather than calling TMDB with an empty id. **Unified storage (§8.4) does not imply unified capability.**
 
-The catalog detail API exposes cast/crew via a nested `ArtistSerializer` inside
-`CatalogSerializer.get_credits`, sourced from `obj.credits.select_related('artist')`
-— the **local Credit table**, populated at ingest time by `get_movie_credits` /
-`get_tv_credits`. It does **not** call TMDB. This is the same live-vs-local split as §8.14: "who is in this work" is known locally (stored on ingest), so detail reads local and needs no external call; "everything this person made" (artist detail) can't be pre-stored and reads live from TMDB. One consequence: catalog detail works offline; artist detail does not.
+### 8.18 The `creator` field is superseded by Artist/Credit
 
-The `creator` text field (§8.6's Stage-1 stand-in) is superseded by Artist/Credit and dropped from the serializer output; the DB column remains pending a cleanup migration (deferred — may hold manual-entry data; the manual add flow may still reference it).
-
-### 8.18 Artist capabilities are source-dependent
-
-The `Artist` table stores people from two sources (TMDB cast/crew; Google Books
-authors), but they are not capability-symmetric. TMDB artists have an
-`external_id` (person id) and a filmography via `combined_credits`; Google Books
-authors have neither (Google Books has no "author's works" endpoint), so they are stored with an empty `external_id`. Any TMDB-specific operation on an artist
-(filmography, and future TMDB-only features) must first check `source` /
-`external_id` and degrade gracefully — the artist-detail API returns basic info
-with an empty filmography and `has_filmography: false` for non-TMDB artists,
-rather than calling TMDB with an empty id. Unified storage (§8.4) does not imply
-unified capability.
+`creator` was the Stage-1 plain-text stand-in for "who made this" (§8.6). Once Artist/Credit landed in Stage 2, creator information is carried by credits (directors / actors / authors), so `creator` is no longer populated for API-sourced works and is dropped from API serializer output. The DB column remains pending a cleanup migration — deferred because it may hold manual-entry data and the manual add flow may still reference it.
 
 ---
 
 ## 9. Phased Delivery
 
-The core strategy: **build Stage 1 to look like Stage 2's shape**, so the transition changes as little code as possible. The user's primary action in both stages is *writing a review*; the catalog record is a by-product.
+The core strategy: **build Stage 1 to look like Stage 2's shape**, so the transition changes as little code as possible. The user's primary action in every stage is *writing a review*; the catalog record is a by-product. Later stages add discovery, recommendations, and an API layer — each growing on the same service layer (§8.7) rather than replacing it.
 
 ### Stage 1 — Working core (manual data) — *complete*
 
 - **Data source:** manual entry.
 - **`accounts`:** registration, login, logout (built-in auth + custom registration view + templates).
-- **`catalog` — add entry:** one form collects both work info (media_type, title, genres) and review info (rating, review_text). On submit, the view calls `get_or_create_work()` to create/reuse the `Catalog` row, associates genres, then upserts a `Review`.
-- **`catalog` — detail:** shows a work, its average rating (reverse query + `Avg` aggregation), and all its reviews.
-- **Known limitation:** data quality is imperfect (possible duplicate works from manual entry), accepted in exchange for full command of Django fundamentals.
+- **`catalog` — add entry:** one form collects work info (media_type, title, genres) and review info (rating, review_text); the view calls `get_or_create_work()`, associates genres, then upserts a `Review`.
+- **`catalog` — detail:** a work, its average rating (`Avg` aggregation), and all its reviews.
+- **Personal side:** my records — list, edit, delete, search.
+- **Known limitation:** possible duplicate works from manual entry, accepted in exchange for command of Django fundamentals; superseded by Stage 2's `external_id` de-duplication.
 
-The personal side (my records: list, edit, delete, search) is being completed within Stage 1. The public discovery side has its foundation in Stage 1 (the work detail page) but its richer form depends on later stages, as the roadmap below reflects.
+### Stage 2 — External API integration — *complete*
 
-### Stage 2 — External API integration — *in progress*
-
-**Done:**
-- `catalog/clients.py` — a dedicated API-client layer with a low-level `_tmdb_get` helper shared by all TMDB calls, plus `_google_books_get` for books. Each wraps `timeout`, `raise_for_status`, and `try/except` returning a safe fallback so a failed API call degrades gracefully.
-- `get_or_create_work()` rewritten: check local `Catalog` by `source` + `external_id` first, reuse if found; otherwise dispatch by `media_type` to a per-medium mapper (`_map_movie` / `_map_tv` / `_map_book`), then store. The seam held — views/templates/review logic did not change shape.
-- De-duplication uses `source` + `external_id`, not title matching.
-- API keys (TMDB, Google Books) via `.env` + `python-dotenv`, git-ignored, `.env.example` committed.
-- Three media types fully wired: movies & TV (TMDB), books (Google Books) — search → select → detail → rate, with a media-type selector on search.
-- Genre mapping per source (TMDB genre objects; Google Books `categories` paths split on `/`), with dirty legacy data cleaned.
-- `upsert_review` service extracted (shared by add and edit).
-- `Artist` / `Credit` (cast/crew/authors).
+- **`catalog/clients.py`** — a dedicated client layer: low-level `_tmdb_get` shared by all TMDB calls, plus `_google_books_get`. Each wraps `timeout`, `raise_for_status`, and `try/except` returning a safe fallback so a failed call degrades gracefully.
+- **`get_or_create_work()`** — check local `Catalog` by `source` + `external_id`; reuse if found, else dispatch by `media_type` to a per-medium mapper (`_map_movie` / `_map_tv` / `_map_book`) and store. The §8.7 seam held: views/templates/review logic unchanged.
+- **De-duplication** on `source` + `external_id`, not title matching.
+- **API keys** via `.env` + `python-dotenv`, git-ignored, `.env.example` committed.
+- **Three media types wired:** movies & TV (TMDB), books (Google Books) — search → select → detail → rate, with a media-type selector.
+- **Genre mapping per source** (TMDB genre objects; Google Books `categories` split on `/`), legacy data cleaned.
+- **`upsert_review`** service extracted (shared by add and edit).
+- **`Artist` / `Credit`** — cast/crew (TMDB) and authors (Google Books), via a `through` Credit table carrying `role`.
 
 ### Stage 3 — Discovery and recommendations — *in progress*
 
 > **LLM recommendations** have their own design doc: [llm_design.md](./llm_design.md).
 
 **Done:**
-- **Catalog home as a discovery surface**: the home page now shows TMDB "popular movies" and "popular TV" poster walls (via `/movie/popular`, `/tv/popular`), replacing the old in-library list. Each poster links into the select → detail flow. Book discovery (no popular endpoint on Google Books) is planned via the NYT Bestseller API.
-- **Response caching**: popular lists are cached (`cache.get`/`cache.set`, 1-hour TTL, `LocMemCache` in dev) so the home page hits TMDB roughly once an hour instead of on every load.
-- **Artist detail page**: Click a person's photo → full TMDB filmography.
-  - `get_artist` (client) fetches `combined_credits`; returns cast + crew.
-  - `_merge_crew` (service) dedupes by `(id, media_type)`, collapses multiple jobs into one entry.
-  - Cast/crew shown in two blocks; posters link into `select_work` (fetch-on-click persistence).
-- **Discovery filters** (genre): search popular movie and tv by genre.
+- **Catalog home as a discovery surface** — TMDB popular movie/TV poster walls replace the old in-library list; each poster links into select → detail.
+- **Response caching** — popular lists and genre lists cached (1-hour TTL, `LocMemCache` in dev), so the home page hits TMDB about once an hour, not per load.
+- **Discovery filters (genre)** — filter popular movies/TV by genre via TMDB `/discover`.
+- **Artist detail page** — click a person → full TMDB filmography (§8.14, live). `get_artist_filmography` (service) checks `source` (§8.17), calls the client, dedupes crew by `(id, media_type)` collapsing multiple jobs into one entry, and slims each work; non-TMDB authors return `has_filmography: false`. Cast/crew shown in two blocks; posters persist-on-click into detail.
+- **LLM recommendations** — single-turn intent → filter → history-grounded picks. Full design in llm_design.md.
 
 **Planned:**
-- **Discovery filters** (cast / rating) — planned; implement in review app.
-- **Home page as the LLM surface** — planned.
-- **`recommendations` app** — planned.
-- **wishlist model**
+- **Discovery filters (cast / rating)** — read the local library (`Catalog` filtered by `credit__artist`), the inverse of artist detail's live read (§8.14). Implemented in the reviews/catalog side.
+- **Book discovery** via NYT Bestseller API (Google Books has no popular endpoint).
+- **Wishlist** — a `Wishlist` model (parallel to Review; see the wishlist TODO), designed-not-built per §8.6's yardstick.
 
 ### Stage 4 — REST API layer (for React frontend) — *in progress*
 
-The service layer (§8.7) pays off again: the API grows on top of it, HTML views
-untouched. See §8.16 for the design decisions.
+The service layer (§8.7) pays off again: the API grows on top of it, HTML views untouched (§8.16). Each app is now self-contained — `urls.py` + `api_urls.py`, `views.py` + `api_views.py`, sharing one `services.py`.
 
-> **React frontend design** has its own doc: [frontend_map.md](./frontend_map.md).
+> **React frontend page/endpoint plan** has its own doc: [frontend_map.md](./frontend_map.md).
 
-**Done:**
-- DRF installed; `TokenAuthentication` + `IsAuthenticated` as defaults.
-- `/api/token/` — credentials → token (DRF `obtain_auth_token`).
-- `reviews` API: full CRUD via `ReviewViewSet` (`ModelViewSet`) + `DefaultRouter` at `/api/reviews/`. `ReviewSerializer` carries writable `catalog` + read-only `title` / `media_type`. `perform_create` reuses `upsert_review`; per-object permission via user-scoped `get_queryset`. Verified end-to-end (list / retrieve / create / update / delete / upsert-on-repeat / cross-user 404) via Postman.
-- `catalog` API (all endpoints under `/api/catalog/`, split into `catalog/api_urls.py`):
-  - `GET /<pk>/` — work detail. `CatalogSerializer` carries `average_rating`
-    (SerializerMethodField + `Avg` aggregate), `genres` as names (`SlugRelatedField`), and **nested `credits`** (directors / actors / authors, each a nested `ArtistSerializer` with id / name / profile_url) — read from the **local Credit table**, not TMDB (§8.14: catalog detail reads local; artist detail reads live).
-  - `GET /<pk>/reviews/` — all reviews for a work (public), `PublicReviewSerializer` exposing `user.username`. Distinct from `/api/reviews/` (my private reviews).
-  - `GET /popular/movie/` and `/popular/tv/` — popular walls, optional `?genre_id=` to filter; reuse the cached discover services.
-  - `GET /search/?q=&media_type=` — searches TMDB, returns a **slimmed** shape
-    (external_id / media_type / title / year / poster_url) via per-medium slim
-    helpers in `services.py` (mappers, like `_map_*`, living in the service layer because "which fields the app needs" is business logic, not a client concern).
-  - `POST /select/` — persist-on-click. Body `{external_id, media_type}` →
-    `get_or_create_work` → returns the full serialized work (or 400 missing / 404 not-found). The API twin of the HTML `select_work`; shared downstream target for search / recommendation / artist-page clicks. Public (`AllowAny`), per §8.10.
-  - Public read endpoints use `AllowAny` to override the global `IsAuthenticated` default (public browse, §8.13).
-- **`discovery_home` logic pushed down into `services.py`.** Popular/genre/cache
-  logic that had accumulated inside the HTML view was extracted into services
-  (`get_popular_movies` / `_tv`, `get_cached_movie_genres` / `_tv`, `search_external`) so the HTML view and the API view call the same functions — paying off §8.7 by finally moving that logic out of the view where it had leaked.
-- **API routes split per app.** `catalog/api_urls.py` + `reviews/api_urls.py`,
-  included from `config/urls.py` — mirroring the HTML `urls.py` per-app structure (§5). Each app is now self-contained: `urls.py` + `api_urls.py`, `views.py` + `api_views.py`, sharing one `services.py`.
+**Done — setup & auth:**
+- DRF installed; `TokenAuthentication` + `IsAuthenticated` as global defaults.
+- `POST /api/token/` — credentials → token (DRF `obtain_auth_token`). Clients then send `Authorization: Token <…>` on each request (header, not URL params or body; protected by HTTPS in production).
 
+**Done — reviews API** (`ReviewViewSet`, `ModelViewSet` + `DefaultRouter`):
+- One viewset covers all five operations across two URLs: `/api/reviews/` (GET list, POST create) and `/api/reviews/<pk>/` (GET / PUT / PATCH / DELETE), distinguished by HTTP method — replacing the four separate HTML views.
+- `get_queryset` filtered by `user=request.user` does **double duty**: scopes the list *and* enforces per-object permission (another user's review isn't in the queryset, so update/delete 404) — replacing the hand-written `get_object_or_404(..., user=)` guard.
+- `perform_create` reuses `upsert_review` (§8.8), so "one review per user per work, re-submit updates" is identical across both frontends; `user` is forced to `request.user`, never trusted from the body; the upserted row is assigned back to `serializer.instance` so the response carries the real DB-generated `id` / `created_at`, not an echo of the input.
+- `ReviewSerializer`: writable `catalog` (client sends a work id on create) + read-only `title` / `media_type` pulled across the FK (`source='catalog.title'`) so one request carries the display name.
+- **Request-shape convention (reusable):** resource id in the **URL** (which review to operate on); creation data in the **body** (the `catalog` id is *content* of the new review); filters in **params**.
+
+**Done — catalog API** (under `/api/catalog/`, in `catalog/api_urls.py`; public reads use `AllowAny` to override the global default, per §8.13):
+- `GET /<pk>/` — work detail. `CatalogSerializer` carries `average_rating` (`SerializerMethodField` + `Avg`), `genres` as names (`SlugRelatedField`), and **nested `credits`** (directors / actors / authors, each a nested `ArtistSerializer` of id / name / profile_url) — read from the local `Credit` table, not TMDB (§8.14). `creator` dropped from output (§8.18).
+- `GET /<pk>/reviews/` — all reviews for a work (public), `PublicReviewSerializer` exposing `user.username`. Distinct from `/api/reviews/` (my private reviews).
+- `GET /popular/movie/` and `/popular/tv/` — popular walls, optional `?genre_id=` filter; reuse the cached discover services.
+- `GET /search/?q=&media_type=` — searches TMDB, returns a **slimmed** shape (external_id / media_type / title / year / poster_url) via slim helpers in `services.py` (mappers like `_map_*`, in the service layer because "which fields the app needs" is business logic, not a client concern).
+- `POST /select/` — persist-on-click. Body `{external_id, media_type}` → `get_or_create_work` → full serialized work (400 missing / 404 not-found). The API twin of HTML `select_work`; the shared downstream target for search / recommendation / artist-page clicks (§8.10).
+
+**Done — artist API:**
+- `GET /api/catalog/artists/<pk>/` — basic info (local `Artist` via `ArtistSerializer`) + live filmography (`get_artist_filmography` service, shared with the HTML view). Non-TMDB authors return `has_filmography: false` + empty lists (§8.17). Each filmography item is slimmed and carries `external_id` + `media_type` so clicks route through `POST /select/`.
+
+**Done — structural cleanups:**
+- **`discovery_home` logic pushed into `services.py`** (`get_popular_movies/_tv`, `get_cached_movie_genres/_tv`, `search_external`) so HTML and API views call the same functions — paying off §8.7 by moving logic out of the view where it had leaked.
+- **API routes split per app** (`catalog/api_urls.py`, `reviews/api_urls.py`), included from `config/urls.py`, mirroring the HTML per-app structure (§5).
 
 **Planned:**
+- **`recommendations` API** — a single action endpoint (`APIView`, not CRUD) calling `get_recommendations`.
 - **Persist-on-click for recommendations** — the LLM returns a title string, not an external_id, so it needs a title→search→id step before `/select/` (unlike search / artist clicks, which already have external_id). See llm_design TODO ④.
-- `recommendations` API — a single action endpoint (`APIView`, not CRUD) calling
-  `get_recommendations`.
-- `artist` API (`GET /api/artists/<id>/`) — calls `get_artist` (live TMDB combined_credits).
-- `accounts` API — register (careful with password hashing, §8.1); logout (token invalidation).
-- Auth flow for a separate-origin SPA (CORS via `django-cors-headers`, possibly JWT).
-- React frontend consuming these endpoints (see [frontend_map.md](./frontend_map.md)).
+- **`accounts` API** — register (password hashing via Django, §8.1); logout (token invalidation). Login already exists as `/api/token/`.
+- **Separate-origin SPA auth** — CORS (`django-cors-headers`), possibly JWT instead of token.
+- **React frontend** consuming these endpoints (see [frontend_map.md](./frontend_map.md)).
+
+### Even later / optional
+
+- React frontend (Stage 4 API is underway; React begins once the core endpoints — reviews ✓, catalog ✓, artist ✓, recommendations, accounts — exist).
+- `creator` column removal migration (§8.18).
 
 
 ---
@@ -497,7 +443,7 @@ untouched. See §8.16 for the design decisions.
 | API routes split per app (`catalog/api_urls.py`, `reviews/api_urls.py`) | ✅ Implemented |
 | `discovery_home` logic extracted into services | ✅ Implemented |
 | REST API — recommendations endpoint | ⬜ Not yet |
-| REST API — artist endpoint | ⬜ Not yet |
+| REST API — artist endpoint | ✅ Implemented |
 | REST API — accounts (register / logout) | ⬜ Not yet |
 | `creator` field removal (cleanup migration) | ⬜ Deferred |
 | React frontend | 💭 Future (Stage 4, after core endpoints) |

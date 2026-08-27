@@ -50,7 +50,7 @@ Legend: **✓** exists · **NEW** to build · **(planned)** future, not now.
 ### Home / Recommendations
 | Need | Endpoint | Status |
 |---|---|---|
-| Generate recommendations from free-text intent + media types | `POST /api/recommendations/` (body: query, media_types) | NEW |
+| Generate recommendations from free-text intent + media types | `POST /api/recommendations/` (body: query, media_types) | ✓ |
 | (optional) popular walls if Home doubles as discovery | see Discovery | — |
 | Click a recommendation → open the work | resolve title→id, then Work Detail (see note) | NEW |
 
@@ -59,10 +59,10 @@ Legend: **✓** exists · **NEW** to build · **(planned)** future, not now.
 ### Discovery (includes Search as a sub-state)
 | Need | Endpoint | Status |
 |---|---|---|
-| Popular movies / TV walls | `GET /api/catalog/popular/` (or `/discover/`) | NEW |
-| Filter by genre | `GET /api/catalog/?genre=...` (or `/discover/?genre=`) | NEW |
-| Search to add works (hits TMDB) | `GET /api/catalog/search/?q=...` | NEW |
-| Click an item / result → open the work | Work Detail | — |
+| Popular movies / TV walls | `GET /api/catalog/popular/` (or `/discover/`) | ✓ |
+| Filter by genre | `GET /api/catalog/?genre=...` (or `/discover/?genre=`) | ✓ |
+| Search to add works (hits TMDB) | `GET /api/catalog/search/?q=...` | ✓ |
+| Click an item / result → open the work | Work Detail | ✓ |
 
 > HTML currently renders the popular walls server-side (no API). React needs a real endpoint. Search hits TMDB (distinct from the local DB — `/search` vs `/discover`, per Stage 3 notes).
 
@@ -77,18 +77,18 @@ Legend: **✓** exists · **NEW** to build · **(planned)** future, not now.
 ### Work Detail
 | Need | Endpoint | Status |
 |---|---|---|
-| Work info (title, metadata, cover, genres) | `GET /api/catalog/<id>/` | NEW |
-| All reviews for this work + average rating | `GET /api/catalog/<id>/reviews/` **or** nested in the detail response | NEW |
+| Work info (title, metadata, cover, genres) | `GET /api/catalog/<id>/` | ✓ |
+| All reviews for this work + average rating | `GET /api/catalog/<id>/reviews/` **or** nested in the detail response | ✓ |
 | Add / edit / delete my review | `POST` / `PATCH` / `DELETE /api/reviews/...` | ✓ |
-| Click an artist → open Artist Detail | Artist Detail | — |
+| Click an artist → open Artist Detail | Artist Detail | ✓ |
 
 > **Design decision (defer to build time):** do work-info and its reviews come as **one packed response** (`/api/catalog/<id>/` includes reviews + avg) or **two endpoints** (info first, reviews/paged separately)? Packed = simpler; split = info shows instantly, reviews load/paginate after. Also: compute `avg` server-side and include it, or let the client compute from the review list?
 
 ### Artist Detail
 | Need | Endpoint | Status |
 |---|---|---|
-| Artist + full filmography (live TMDB `combined_credits`) | `GET /api/artists/<id>/` | NEW |
-| Click a work → open Work Detail | Work Detail (may need resolve/persist if not in local Catalog) | — |
+| Artist + full filmography (live TMDB `combined_credits`) | `GET /api/artists/<id>/` | ✓ |
+| Click a work → open Work Detail | Work Detail (may need resolve/persist if not in local Catalog) | ✓ |
 
 > Reads **live from TMDB**, not the local library (`design.md` §8.14). Works in the filmography may not be in local Catalog yet — clicking one needs the same persist-on-click step as search/recommendations.
 
