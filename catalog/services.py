@@ -250,7 +250,7 @@ def _slim_movie_result(item):
     poster_path = item.get('poster_path')
     release_date = item.get('release_date') or ''
     return {
-        'external_id': item.get('id'),
+        'external_id': str(item['id']),
         'media_type': 'movie',
         'title': item.get('title', ''),
         'year': release_date[:4] if release_date[:4].isdigit() else None,
@@ -262,7 +262,7 @@ def _slim_tv_result(item):
     poster_path = item.get('poster_path')
     first_air = item.get('first_air_date') or ''
     return {
-        'external_id': item.get('id'),
+        'external_id': str(item['id']),
         'media_type': 'tv',
         'title': item.get('name', ''),          
         'year': first_air[:4] if first_air[:4].isdigit() else None,
