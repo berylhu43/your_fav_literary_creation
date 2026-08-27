@@ -264,7 +264,7 @@ def _slim_tv_result(item):
     return {
         'external_id': item.get('id'),
         'media_type': 'tv',
-        'title': item.get('name', ''),          # tv 是 name
+        'title': item.get('name', ''),          
         'year': first_air[:4] if first_air[:4].isdigit() else None,
         'poster_url': f'https://image.tmdb.org/t/p/w185{poster_path}' if poster_path else '',
     }

@@ -8,12 +8,16 @@ class ReviewViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return (
+        qs = (
             Review.objects
             .filter(user=self.request.user)
             .select_related('catalog')
             .order_by('-created_at')
         )
+        q = self.request.query_params.get('q', '').strip()
+        if q:
+            qs = qs.filter(catalog__title__icontains=q)
+        return qs
 
     def perform_create(self, serializer):
         review = upsert_review(

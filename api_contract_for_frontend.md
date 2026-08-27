@@ -99,7 +99,7 @@ Each response shape is JSON. Reusable shapes are defined once and referenced.
 ```
 `genres` is a list of names (strings). `average_rating` is a number or `null`. `credits` groups are lists of `Artist` (id / name / profile_url). Medium-specific fields are `null` when not applicable (a movie has no `pages`/`episodes`).
 
-**`SlimWork`** (search results, and each filmography item):
+**`SlimWork`** (search results, popular film/tv and each filmography item):
 ```json
 {
   "external_id": 27205,
@@ -169,7 +169,8 @@ Clicking a result → persist it via `POST /api/catalog/select/` ↓, then go to
 
 **`GET /api/catalog/<id>/`** · public → a full **`Work`** (includes genres, average_rating, and credits with clickable artist ids).
 
-**`GET /api/catalog/<id>/reviews/`** · public → `[ PublicReview, … ]` (everyone's reviews for this work).
+**`GET /api/catalog/<id>/reviews/`** · public (auth optional)
+Response: `{ "my_review": PublicReview | null, "other_reviews": [PublicReview, …] }` If the request carries a token, the current user's own review (if any) is split out as `my_review` and excluded from `other_reviews`; anonymous requests get `my_review: null` and all reviews in `other_reviews`. Use `my_review` to render the "your review" block with edit/delete; `other_reviews` for everyone else's.
 
 **`POST /api/catalog/select/`** · public
 Persists a work chosen from search / a filmography (which only had an `external_id`), so it can be opened by `id`.
@@ -200,6 +201,8 @@ Clicking a work in the filmography: it only has an `external_id`, so persist it 
 
 **`GET /api/reviews/`** → `[ MyReview, … ]` (the current user's reviews, newest first).
 
+**`GET /api/reviews/?q=`** → perform a search in MyReview by work title.
+
 **`POST /api/reviews/`** — create/update my review for a work.
 Body: `{ "catalog": 42, "rating": 4.5, "review_text": "…" }` → the created/updated **`MyReview`**.
 Note: one review per user per work — posting again for the same `catalog` **updates** the existing one (not an error).
@@ -212,8 +215,7 @@ Note: one review per user per work — posting again for the same `catalog` **up
 
 `<pk>` is the **review id** (`MyReview.id`), not the work id. Acting on a review that isn't yours → 404.
 
-**Searching my records:**
-> ⚠️ **GAP — confirm.** A `?q=` filter on `GET /api/reviews/` may not exist yet. If it doesn't, either it's added backend-side, or the frontend filters the already-fetched list client-side (fine for small lists). Confirm before building the search box.
+
 
 ---
 
