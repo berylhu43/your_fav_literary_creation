@@ -215,7 +215,7 @@ erDiagram
 
 ---
 
-## 8. Key Design Decisions## 8. Key Design Decisions
+## 8. Key Design Decisions
 
 Each decision is recorded with its rationale so the reasoning survives for future readers (including a future self with no context). Decisions state *what* and *why*; *how* it was built lives in §9.
 
@@ -351,48 +351,42 @@ The core strategy: **build Stage 1 to look like Stage 2's shape**, so the transi
 - **Book discovery** via NYT Bestseller API (Google Books has no popular endpoint).
 - **Wishlist** — a `Wishlist` model (parallel to Review; see the wishlist TODO), designed-not-built per §8.6's yardstick.
 
-### Stage 4 — REST API layer (for React frontend) — *in progress*
+### Stage 4 — REST API layer (for React frontend) — *complete*
 
-The service layer (§8.7) pays off again: the API grows on top of it, HTML views untouched (§8.16). Each app is now self-contained — `urls.py` + `api_urls.py`, `views.py` + `api_views.py`, sharing one `services.py`.
+The REST API is a thin DRF layer over the existing service functions — it **grows on top of** the service layer (§8.7) rather than reimplementing anything, and the HTML views are untouched (§8.16). Each app is now self-contained: `urls.py` + `api_urls.py`, `views.py` + `api_views.py`, sharing one `services.py`.
 
-> **React frontend page/endpoint plan** has its own doc: [frontend_map.md](./frontend_map.md).
+**Delivered.** Read/CRUD APIs for every resource the React frontend needs, all through DRF and reusing the service layer (the API views stay thin):
+- **reviews** — `ModelViewSet` (the user's own private reviews, all methods)
+- **catalog** — work detail, per-work reviews, popular walls, search, persist-on-click, genre lists
+- **artists** — detail + live filmography
+- **recommendations** — generate + pick (title → work)
+- **accounts** — register, login (token), logout
 
-**Done — setup & auth:**
-- DRF installed; `TokenAuthentication` + `IsAuthenticated` as global defaults.
-- `POST /api/token/` — credentials → token (DRF `obtain_auth_token`). Clients then send `Authorization: Token <…>` on each request (header, not URL params or body; protected by HTTPS in production).
+> **Endpoint list, request/response shapes, and auth requirements live in [api_contract_for_frontend.md](./api_contract_for_frontend.md)** — the single source of truth for the wire contract. This section records only the backend *decisions* behind the API, not its surface.
 
-**Done — reviews API** (`ReviewViewSet`, `ModelViewSet` + `DefaultRouter`):
-- One viewset covers all five operations across two URLs: `/api/reviews/` (GET list, POST create) and `/api/reviews/<pk>/` (GET / PUT / PATCH / DELETE), distinguished by HTTP method — replacing the four separate HTML views.
-- `get_queryset` filtered by `user=request.user` does **double duty**: scopes the list *and* enforces per-object permission (another user's review isn't in the queryset, so update/delete 404) — replacing the hand-written `get_object_or_404(..., user=)` guard.
-- `perform_create` reuses `upsert_review` (§8.8), so "one review per user per work, re-submit updates" is identical across both frontends; `user` is forced to `request.user`, never trusted from the body; the upserted row is assigned back to `serializer.instance` so the response carries the real DB-generated `id` / `created_at`, not an echo of the input.
-- `ReviewSerializer`: writable `catalog` (client sends a work id on create) + read-only `title` / `media_type` pulled across the FK (`source='catalog.title'`) so one request carries the display name.
-- **Request-shape convention (reusable):** resource id in the **URL** (which review to operate on); creation data in the **body** (the `catalog` id is *content* of the new review); filters in **params**.
+**Decisions & insights worth keeping:**
 
-**Done — catalog API** (under `/api/catalog/`, in `catalog/api_urls.py`; public reads use `AllowAny` to override the global default, per §8.13):
-- `GET /<pk>/` — work detail. `CatalogSerializer` carries `average_rating` (`SerializerMethodField` + `Avg`), `genres` as names (`SlugRelatedField`), and **nested `credits`** (directors / actors / authors, each a nested `ArtistSerializer` of id / name / profile_url) — read from the local `Credit` table, not TMDB (§8.14). `creator` dropped from output (§8.18).
-- `GET /<pk>/reviews/` — all reviews for a work (public), `PublicReviewSerializer` exposing `user.username`. Distinct from `/api/reviews/` (my private reviews).
-- `GET /popular/movie/` and `/popular/tv/` — popular walls, optional `?genre_id=` filter; reuse the cached discover services.
-- `GET /search/?q=&media_type=` — searches TMDB, returns a **slimmed** shape (external_id / media_type / title / year / poster_url) via slim helpers in `services.py` (mappers like `_map_*`, in the service layer because "which fields the app needs" is business logic, not a client concern).
-- `POST /select/` — persist-on-click. Body `{external_id, media_type}` → `get_or_create_work` → full serialized work (400 missing / 404 not-found). The API twin of HTML `select_work`; the shared downstream target for search / recommendation / artist-page clicks (§8.10).
+- **Auth posture.** `IsAuthenticated` is the global default; public-browsing endpoints (catalog reads, `select`) opt out with `AllowAny` (§8.13). Token auth: `Authorization: Token <…>` in the header per request (HTTPS-protected in production).
 
-**Done — artist API:**
-- `GET /api/catalog/artists/<pk>/` — basic info (local `Artist` via `ArtistSerializer`) + live filmography (`get_artist_filmography` service, shared with the HTML view). Non-TMDB authors return `has_filmography: false` + empty lists (§8.17). Each filmography item is slimmed and carries `external_id` + `media_type` so clicks route through `POST /select/`.
+- **Reviews as one `ModelViewSet` (+ `DefaultRouter`)** replaces the four separate HTML views — five operations distinguished by HTTP method, not by URL.
+  - `get_queryset` filtered by `user=request.user` does **double duty**: it scopes the list *and* enforces per-object permission — another user's review simply isn't in the queryset, so update/delete 404 on their own, replacing the hand-written `get_object_or_404(..., user=)` guard.
+  - `perform_create` reuses `upsert_review` (§8.8), so "one review per user per work, re-submit updates" is identical across both frontends. `user` is forced to `request.user` (never trusted from the body); the upserted row is assigned back to `serializer.instance`, so the response carries the real DB-generated `id` / `created_at`, not an echo of the input.
 
-**Done — structural cleanups:**
-- **`discovery_home` logic pushed into `services.py`** (`get_popular_movies/_tv`, `get_cached_movie_genres/_tv`, `search_external`) so HTML and API views call the same functions — paying off §8.7 by moving logic out of the view where it had leaked.
-- **API routes split per app** (`catalog/api_urls.py`, `reviews/api_urls.py`), included from `config/urls.py`, mirroring the HTML per-app structure (§5).
+- **Request-shape convention (reusable):** resource id in the **URL** (which resource to act on), creation data in the **body** (e.g. the `catalog` id is *content* of a new review), filters in **params**.
 
-**Planned:**
-- **`recommendations` API** — a single action endpoint (`APIView`, not CRUD) calling `get_recommendations`.
-- **Persist-on-click for recommendations** — the LLM returns a title string, not an external_id, so it needs a title→search→id step before `/select/` (unlike search / artist clicks, which already have external_id). See llm_design TODO ④.
-- **`accounts` API** — register (password hashing via Django, §8.1); logout (token invalidation). Login already exists as `/api/token/`.
-- **Separate-origin SPA auth** — CORS (`django-cors-headers`), possibly JWT instead of token.
-- **React frontend** consuming these endpoints (see [frontend_map.md](./frontend_map.md)).
+- **Reads come from local tables + slim mappers in the service layer.** Credits are read from the local `Credit` table, not TMDB (§8.14). Search results and filmography items are returned in a *slimmed* shape via `_map_*` helpers that live in `services.py` — "which fields the app needs" is business logic, not a client concern.
 
-### Even later / optional
+- **`select` (persist-on-click) is a shared seam.** It's the API twin of HTML `select_work` (§8.10) and the single downstream target for every click that only carries an `external_id` (search, artist filmography) — or, for recommendations, a title that first goes through a title→search→id step. "A work must exist locally before it can be opened by id" thus lives in exactly one place.
 
-- React frontend (Stage 4 API is underway; React begins once the core endpoints — reviews ✓, catalog ✓, artist ✓, recommendations, accounts — exist).
-- `creator` column removal migration (§8.18).
+- **Public vs. private reviews are different endpoints/serializers.** A work's page shows everyone's reviews (public, exposing `username`); "my reviews" is private and scoped to the user. Same underlying data, two audiences, two shapes.
+
+- **Non-TMDB graceful degradation.** Book authors have no filmography source, so the artist endpoint returns `has_filmography: false` + empty lists rather than erroring (§8.17).
+
+- **Structural cleanup.** `discovery_home`'s logic was pushed down into `services.py` (`get_popular_movies/_tv`, `get_cached_*_genres`, `search_external`) so HTML and API views call the same functions — paying off §8.7 by moving logic out of the view where it had leaked. API routes are split per app (`catalog/api_urls.py`, `reviews/api_urls.py`), included from `config/urls.py`, mirroring the HTML per-app structure (§5).
+
+**Still open / deferred:**
+- Separate-origin SPA auth hardening — CORS is configured (`django-cors-headers`) for the dev origins; a JWT swap (instead of token auth) stays optional, to revisit only if refresh semantics are wanted.
+- React frontend build (consumes the above; page/endpoint plan in [frontend_map.md](./frontend_map.md)).
 
 
 ---

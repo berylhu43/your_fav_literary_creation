@@ -66,7 +66,6 @@ flowchart TD
 
 - **Four top-level pages** via a nav bar. **Work Detail** is the shared hub reached from every list. **Artist Detail ↔ Work Detail** loop.
 - **Search Results is a state of Discovery**, driven by a query param (e.g. `/discovery?q=…`), not a separate nav page.
-- **Wishlist** is mentioned in some places but **not available** — do not build it (see §5).
 
 ---
 
@@ -125,6 +124,22 @@ Filmography items additionally may carry `"character"` (cast) or `"jobs": ["Dire
 
 ---
 
+### Register/Login/Logout
+
+**`POST /api/token/`** · public — **this is login.**
+Body: `{ "username": "...", "password": "..." }`
+Success (200): `{ "token": "..." }` — store it, send as `Authorization: Token <...>` on authenticated requests.
+Error (400): invalid credentials.
+
+**`POST /api/register/`** · public (no token)
+Body: `{ "username": "...", "password": "...", "email": "..." }` — all three required.
+Success (201): `{ "token": "...", "username": "..." }` — the token logs the new user in immediately (store it and treat the user as authenticated; no separate login call needed).
+Errors (400): weak password, duplicate username[, duplicate email], missing field.
+The response never contains the password.
+
+**`POST /api/logout/`** · auth required
+Deletes the current token server-side. Success: 204 (no body). After calling, the frontend must also drop its stored token. The now-deleted token returns 401 if reused.
+
 ### Recommendations — Home page
 
 **`POST /api/recommendations/`** · auth required
@@ -153,15 +168,23 @@ Errors: **404** if the title can't be resolved to a real work (show "couldn't fi
 
 **`GET /api/catalog/popular/movie/`** and **`GET /api/catalog/popular/tv/`** · public
 Optional query param `?genre_id=<id>` to filter by genre.
-Response: a list of works to show as a poster wall.
-> ⚠️ **CONFIRM SHAPE IN POSTMAN.** These may currently return raw TMDB objects rather than `SlimWork`. The frontend needs a consistent shape; if they aren't `SlimWork`, that's a backend fix to make before building (so search and popular render with one component). Do not build against an unconfirmed shape.
+Response: `[ SlimWork, … ]` a list of works to show as a poster wall.
+
 
 **`GET /api/catalog/search/?q=<text>&media_type=<movie|tv|book>`** · public
 Response: `[ SlimWork, … ]` (empty list if `q` is empty or nothing matches).
 Clicking a result → persist it via `POST /api/catalog/select/` ↓, then go to Work Detail.
 
-**Genre list for the filter dropdown:**
-> ⚠️ **GAP — confirm.** The genre-filter UI needs the list of available genres. Verify whether an endpoint returns them (or whether popular includes them). If none exists, flag it — the genre filter can't be built without it.
+**`GET /api/catalog/genres/movie/`*** and **`GET /api/catalog/genres/tv/`*** · public
+Response: a list of json format with ids and names.
+```json
+[
+    {
+        "id": 28,
+        "name": "Action"
+    },
+]
+```
 
 ---
 
@@ -225,25 +248,15 @@ Note: one review per user per work — posting again for the same `catalog` **up
 - **400** bad/missing input · **401** not authenticated (→ send to login) · **404** not found / not yours.
 - Error bodies look like `{ "error": "…" }` or DRF's field-error format `{ "field": ["msg"] }`. Show a friendly message; don't assume a single fixed error shape.
 
----
 
-## 5. Not available — do NOT build against these
-
-These are referenced in planning but have **no endpoint**. Do not code screens that call them; stub or omit as noted.
-
-- **Register / sign-up** — no endpoint yet. Either omit sign-up (users are created out-of-band) or leave a placeholder. Confirm with the backend owner.
-- **Server-side logout** — none; log out by dropping the token client-side.
-- **Wishlist** — not built; omit entirely.
-- **`?q=` search on my reviews** — confirm (see above); may need client-side filtering.
-- **Genre list endpoint** — confirm (see above).
 
 ---
 
-## 6. Backend prerequisites (owner must confirm before handoff)
+## 5. Backend prerequisites (owner must confirm before handoff)
 
 For the SPA to work at all:
-- [ ] **CORS configured** to allow the React dev origin (e.g. `http://localhost:5173`). Without this, the browser blocks every cross-origin API call and nothing works.
-- [ ] **popular endpoints return a consistent shape** (ideally `SlimWork`, like search).
-- [ ] **genre-list endpoint** exists (or genre filter is dropped).
-- [ ] **register** decided (build it, or omit sign-up).
-- [ ] Backend is **running and reachable** at the base URL the frontend is configured with.
+- [x] **CORS configured** to allow the React dev origin (e.g. `http://localhost:5173`). Without this, the browser blocks every cross-origin API call and nothing works.
+- [x] **popular endpoints return a consistent shape** (ideally `SlimWork`, like search).
+- [x] **genre-list endpoint** exists (or genre filter is dropped).
+- [x] **register** decided (build it, or omit sign-up).
+- [x] Backend is **running and reachable** at the base URL the frontend is configured with.

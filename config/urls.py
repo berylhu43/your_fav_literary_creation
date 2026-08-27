@@ -16,7 +16,6 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from rest_framework.authtoken.views import obtain_auth_token
 
 
 urlpatterns = [
@@ -27,7 +26,7 @@ urlpatterns = [
     path('catalog/', include('catalog.urls')),
     path('reviews/', include('reviews.urls')),
     # API
-    path('api/token/', obtain_auth_token, name='api_token'),
+    path('api/', include('accounts.api_urls')),  # register/login/logout
     path('api/catalog/', include('catalog.api_urls')),   # catalog API
     path('api/', include('reviews.api_urls')),  # review API
     path('api/recommendations/', include('recommendations.api_urls')),  # recommendation API
