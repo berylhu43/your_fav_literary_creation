@@ -7,7 +7,7 @@ from catalog.models import Genre, Catalog
 from .clients import _llm_get
 
 
-def get_recommendations(user, query, media_types):
+def get_recommendations(user, query, media_types, force_refresh=False):
     """
     Get personalized recommendations for a user.
     Three steps: llm filter based on user input, ORM get user history, query LLM.
@@ -17,17 +17,21 @@ def get_recommendations(user, query, media_types):
     """
     # check cache
     key = _recommend_cache_key(user, query, media_types)
-    cached = cache.get(key)
-    if cached is not None:
-        return cached\
+
+    if not force_refresh:
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
 
     filters = _extract_filters(query, media_types)
     samples = _sample_reviews(user, filters, media_types)
-    prompt = _build_recommend_prompt(query, media_types, samples)
-    raw = _llm_get([{'role': 'user', 'content': prompt}])
+    prompt = _build_recommend_prompt(query, media_types, samples, filters)
+    raw = _llm_get([{'role': 'user', 'content': prompt}], temperature=0.9)
     result = _parse(raw) if raw else []
+    result = _filter_seen(user, result, media_types)   
+    result = result[:10]
     cache.set(key, result, 60 * 60)
-    return _parse(raw)
+    return result
 
 # get cache
 def _recommend_cache_key(user, query, media_types):
@@ -43,7 +47,7 @@ def _extract_filters(query, media_types):
     Returns a dict of filters, e.g. {'genre': 'sci-fi', 'year': 2020}
     """
     prompt = _build_extract_prompt(query, media_types)
-    raw = _llm_get([{'role': 'user', 'content': prompt}])
+    raw = _llm_get([{'role': 'user', 'content': prompt}], temperature=0.2)
     print(f'>>> extract raw: {raw!r}') 
     if raw is None:
         return {}
@@ -138,7 +142,7 @@ def _sample_reviews(user, filters, media_types, per_bucket=10):
     return result
 
 # Third Step: build prompt and query LLM for recommendations
-def _build_recommend_prompt(query, media_types, samples):
+def _build_recommend_prompt(query, media_types, samples, filters):
     """Build the final prompt that asks the LLM to recommend works,
     grounded in the user's rating history when available."""
     today = date.today().isoformat()
@@ -152,21 +156,45 @@ def _build_recommend_prompt(query, media_types, samples):
 
     types = ", ".join(media_types)
 
+    constraints = []
+    genres = filters.get('genres')
+    if genres:
+        constraints.append(f"- Genre: every recommendation MUST match at least one of: {', '.join(genres)}.")
+    year_min = filters.get('year_min')
+    year_max = filters.get('year_max')
+    if year_min and year_max:
+        constraints.append(f"- Release year: MUST be between {year_min} and {year_max} (inclusive).")
+    elif year_min:
+        constraints.append(f"- Release year: MUST be {year_min} or later.")
+    elif year_max:
+        constraints.append(f"- Release year: MUST be {year_max} or earlier.")
+    artist = filters.get('artist')
+    if artist:
+        constraints.append(f"- Prefer works involving {artist} when possible (soft preference, not mandatory).")
+
+    constraint_block = (
+        "Hard constraints extracted from the request "
+        "(a recommendation that violates a MUST is invalid):\n"
+        + "\n".join(constraints) + "\n\n"
+    ) if constraints else ""
+
     return (
         "You are a recommendation engine for a personal media tracker. "
         "Recommend works the user is likely to enjoy but has NOT seen yet.\n\n"
         f"What the user is looking for: \"{query}\"\n"
         f"Today's date: {today}\n\n"
         f"Media types to recommend: {types}\n\n"
+        f"{constraint_block}"
         "The user's past ratings relevant to this request "
         "(their taste signal):\n"
         f"{history}\n\n"
         "Rules:\n"
-        "- Recommend 10 works.\n"
+        "- Recommend 15 works.\n"
         "- Ground your picks in the user's taste above when possible.\n"
+        "- Every recommendation must satisfy ALL hard constraints listed above.\n"
         "- If the history is empty or has fewer than 5 useful signals, fill the "
         "rest using your own knowledge of well-regarded works that match the "
-        "request.\n"
+        "request AND the hard constraints.\n"
         "- Do NOT recommend any title already listed in the history above.\n"
         f"- Every recommendation's media_type must be one of: {types}.\n"
         "- For each recommendation, provide a one-sentence reason why the user would like it.\n\n"
@@ -181,6 +209,21 @@ def _parse(raw):
     except (json.JSONDecodeError, TypeError):
         return []
 
+
+# filter duplicate
+def _norm_title(t):
+    return (t or '').strip().lower()
+
+
+def _filter_seen(user, recommendations, media_types):
+    seen = set(
+        _norm_title(t) for t in Review.objects.filter(
+            user=user,
+            catalog__media_type__in=media_types,
+        ).values_list('catalog__title', flat=True)
+    )
+    return [r for r in recommendations
+            if _norm_title(r.get('title', '')) not in seen]
 
 def _resolve_external_id(title, media_type):
     """

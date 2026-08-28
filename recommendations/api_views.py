@@ -18,7 +18,8 @@ class RecommendationAPI(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        recommendations = get_recommendations(request.user, query, media_types)
+        force = request.data.get('regenerate', False)
+        recommendations = get_recommendations(request.user, query, media_types, force_refresh=bool(force))
         return Response({'recommendations': recommendations})
 
 class RecommendationPickAPI(APIView):

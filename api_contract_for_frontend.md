@@ -145,13 +145,13 @@ Deletes the current token server-side. Success: 204 (no body). After calling, th
 **`POST /api/recommendations/`** · auth required
 Body:
 ```json
-{ "query": "a sci-fi movie that's easy to follow", "media_types": ["movie", "tv"] }
+{ "query": "a sci-fi movie that's easy to follow", "media_types": ["movie", "tv"], "regenerate": false }
 ```
 Response:
 ```json
 { "recommendations": [ { "title": "The Martian", "media_type": "movie", "year": "2015", "reason": "…" }, … ] }
 ```
-Notes: `media_types` is a non-empty array; at least one required. Recommendations are **titles, not works** — they have no id yet. To open one, call pick ↓. This call is **slow** (several seconds — two LLM calls); show a loading state. Missing/empty `query` or `media_types` → 400.
+Notes: `media_types` is a non-empty array; at least one required. `regenerate` is **optional, defaults to `false`** — omit it for normal requests. When `false`, an identical `{query, media_types}` returns a cached batch instantly; when `true`, the server bypasses the cache and generates a fresh batch (slow — see below), then overwrites the cache so subsequent back-navigation restores the new batch. Send `regenerate: true` only from an explicit user "regenerate" action. Recommendations are **titles, not works** — they have no id yet. To open one, call pick ↓. A cache miss (or `regenerate: true`) is **slow** (several seconds — two LLM calls); show a loading state. A cache hit returns in under a second. Missing/empty `query` or `media_types` → 400.
 
 **`POST /api/recommendations/pick/`** · auth required
 Turns a recommended title into a real, persisted work.
