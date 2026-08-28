@@ -165,7 +165,7 @@ erDiagram
     string name
     string external_id "TMDB person id"
     string source
-    string profile_url "nullable"
+    string profile_url "empty string if no image"
     }
     CREDIT {
         int id PK

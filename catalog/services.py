@@ -55,7 +55,7 @@ def _map_book(volume_id):
     published = info.get('publishedDate') or ''
     release_year = int(published[:4]) if published[:4].isdigit() else None
     image_links = info.get('imageLinks', {})
-    cover_url = image_links.get('thumbnail', '')
+    cover_url = image_links.get('thumbnail', '').replace('http://', 'https://', 1)
 
     # google books api returns categories as a list of strings
     # each string may contain multiple genres separated by "/"
@@ -192,55 +192,33 @@ def _get_or_create_artists(person):
     return artist
 
 
-def _merge_crew(crew):
-    merged = {}
-    for c in crew:
-        key = (c['id'], c['media_type'])
-        if key not in merged:
-            entry = c.copy()
-            entry['jobs'] = []
-            merged[key] = entry
-        job = c.get('job')
-        if job and job not in merged[key]['jobs']:
-            merged[key]['jobs'].append(job)
-
-    result = list(merged.values())
-    result.sort(key=lambda c: c.get('popularity') or 0, reverse=True)
-    return result
 
 ## *** artist slim helper and artist detail***
-def _slim_credit_work(item):
-    # only return the required fields for artist search
-    media_type = item.get('media_type')
-    poster_path = item.get('poster_path')
+def _slim_credit(item):
+    if item.get('media_type') == 'tv':
+        return _slim_tv_result(item)
+    return _slim_movie_result(item)
 
-    if media_type == 'tv':
-        title = item.get('name', '')
-        date = item.get('first_air_date') or ''
-    else:
-        title = item.get('title', '')
-        date = item.get('release_date') or ''
 
-    return {
-        'external_id': item.get('id'),
-        'media_type': media_type,
-        'title': title,
-        'year': date[:4] if date[:4].isdigit() else None,
-        'poster_url': f'https://image.tmdb.org/t/p/w185{poster_path}' if poster_path else '',
-        'character': item.get('character'),  
-        'jobs': item.get('jobs'), 
-    }
+def _slim_cast_credit(item):
+    slim = _slim_credit(item)
+    slim['character'] = item.get('character', '')
+    return slim
+
+
+def _slim_crew_credit(item):
+    slim = _slim_credit(item)
+    slim['jobs'] = item.get('jobs', [])
+    return slim
 
 def get_artist_filmography(artist):
-    # if artist is from tmdb, get filmography; otherwise, return empty
     if artist.source != Catalog.Source.TMDB or not artist.external_id:
         return {'cast': [], 'crew': [], 'has_filmography': False}
 
-    cast, crew = clients.get_artist(artist.external_id)
-    crew = _merge_crew(crew)
+    cast, crew = clients.get_artist_credits(artist.external_id)
     return {
-        'cast': [_slim_credit_work(c) for c in cast],
-        'crew': [_slim_credit_work(c) for c in crew],
+        'cast': [_slim_cast_credit(c) for c in cast],
+        'crew': [_slim_crew_credit(c) for c in crew],
         'has_filmography': True,
     }
 
@@ -279,7 +257,7 @@ def _slim_book_result(item):
         'media_type': 'book',
         'title': info.get('title', ''),
         'year': published[:4] if published[:4].isdigit() else None,
-        'poster_url': image_links.get('thumbnail', ''),
+        'poster_url': image_links.get('thumbnail', '').replace('http://', 'https://', 1),
     }
 
 def search_external(*, query, media_type):

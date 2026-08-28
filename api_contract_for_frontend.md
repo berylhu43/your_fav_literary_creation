@@ -101,7 +101,7 @@ Each response shape is JSON. Reusable shapes are defined once and referenced.
 **`SlimWork`** (search results, popular film/tv and each filmography item):
 ```json
 {
-  "external_id": 27205,
+  "external_id": "27205",
   "media_type": "movie",
   "title": "Inception",
   "year": "2010",
@@ -149,7 +149,7 @@ Body:
 ```
 Response:
 ```json
-{ "recommendations": [ { "title": "The Martian", "media_type": "movie", "reason": "…" }, … ] }
+{ "recommendations": [ { "title": "The Martian", "media_type": "movie", "year": "2015", "reason": "…" }, … ] }
 ```
 Notes: `media_types` is a non-empty array; at least one required. Recommendations are **titles, not works** — they have no id yet. To open one, call pick ↓. This call is **slow** (several seconds — two LLM calls); show a loading state. Missing/empty `query` or `media_types` → 400.
 

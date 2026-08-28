@@ -1,5 +1,6 @@
 import requests
 from django.conf import settings
+from django.core.cache import cache
 
 TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes'
@@ -132,14 +133,40 @@ def get_tv_credits(external_id):
 
 
 # ARTIST
-def get_artist(external_id):
+def _credit_year(item):
+    date = item.get('release_date') or item.get('first_air_date') or ''
+    return date[:4] if date[:4].isdigit() else ''
+
+def _merge_crew(crew):
+    merged = {}
+    for c in crew:
+        key = (c['id'], c['media_type'])
+        if key not in merged:
+            entry = c.copy()
+            entry['jobs'] = []
+            merged[key] = entry
+        job = c.get('job')
+        if job and job not in merged[key]['jobs']:
+            merged[key]['jobs'].append(job)
+    return list(merged.values())
+
+def get_artist_credits(external_id):
+    cache_key = f'artist_credits:{external_id}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     data = _tmdb_get(f'/person/{external_id}/combined_credits')
     if data is None:
-        return [], []
-    cast = data.get('cast', [])
-    crew = data.get('crew', [])
-    cast.sort(key=lambda c: c.get('popularity') or 0, reverse=True)
-    return cast, crew
+        return [], []      
+
+    cast = sorted(data.get('cast', []), key=_credit_year, reverse=True)
+    crew = _merge_crew(data.get('crew', []))
+    crew.sort(key=_credit_year, reverse=True)
+
+    result = (cast, crew)
+    cache.set(cache_key, result, 60 * 60)   
+    return result
 
 
 

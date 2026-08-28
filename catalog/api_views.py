@@ -80,7 +80,7 @@ class CatalogPopularMovieAPI(APIView):
     def get(self, request):
         genre_id = request.query_params.get('genre_id', '')
         movies = get_popular_movies(genre_id)
-        return Response([_slim_movie_result(m) for m in movies])   # slim + 直接返回数组
+        return Response([_slim_movie_result(m) for m in movies])   
 
 
 class CatalogPopularTVAPI(APIView):
