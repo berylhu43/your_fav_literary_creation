@@ -5,3 +5,8 @@
 db.sqlite3
 __pycache__/
 *.pyc
+
+# import data
+import_data/
+.douban_import_cache/
+match_report.csv
