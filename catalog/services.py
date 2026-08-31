@@ -13,6 +13,8 @@ def _map_movie(tmdb_id):
     release_year = int(release_date[:4]) if release_date[:4].isdigit() else None
     poster_path = data.get('poster_path')
     cover_url = f'https://image.tmdb.org/t/p/w500{poster_path}' if poster_path else ''
+    vote_average = data.get('vote_average')
+    collection = data.get('belongs_to_collection') or {}
 
     return {
         'title': data.get('title', ''),
@@ -21,6 +23,9 @@ def _map_movie(tmdb_id):
         'runtime': data.get('runtime'),
         'cover_url': cover_url,
         'genre_names': [g['name'] for g in data.get('genres', [])],
+        'vote_average': vote_average,
+        'collection_id': collection.get('id'),
+        'collection_name': collection.get('name', ''),
     }
 
 def _map_tv(tmdb_id):
@@ -33,6 +38,7 @@ def _map_tv(tmdb_id):
     poster_path = data.get('poster_path')
     cover_url = f'https://image.tmdb.org/t/p/w500{poster_path}' if poster_path else ''
     created_by = data.get('created_by', [])
+    vote_average = data.get('vote_average')
 
     return {
         'title': data.get('name', ''),                    
@@ -41,7 +47,8 @@ def _map_tv(tmdb_id):
         'episodes': data.get('number_of_episodes'),       
         'cover_url': cover_url,
         'genre_names': [g['name'] for g in data.get('genres', [])],
-        'created_by': created_by
+        'created_by': created_by,
+        'vote_average': vote_average,
     }
 
 

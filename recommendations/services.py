@@ -24,7 +24,7 @@ def get_recommendations(user, query, media_types, force_refresh=False):
             return cached
 
     filters = _extract_filters(query, media_types)
-    samples = _sample_reviews(user, filters, media_types)
+    samples = _sample_reviews(user, filters, media_types, per_bucket=15)
     prompt = _build_recommend_prompt(query, media_types, samples, filters)
     raw = _llm_get([{'role': 'user', 'content': prompt}], temperature=0.9)
     result = _parse(raw) if raw else []
@@ -225,6 +225,7 @@ def _filter_seen(user, recommendations, media_types):
     return [r for r in recommendations
             if _norm_title(r.get('title', '')) not in seen]
 
+
 def _resolve_external_id(title, media_type):
     """
     Resolve a title and media type to an external ID (e.g. TMDB ID).
@@ -247,7 +248,7 @@ def _resolve_external_id(title, media_type):
         if results:
             return results[0].get('id')
     elif media_type == 'book':
-        data = _google_books_get(title)
+        data = _google_books_get('', {'q':title})
         items = data.get('items', [])
         if items:
             return items[0].get('id')
