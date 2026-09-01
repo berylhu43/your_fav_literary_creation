@@ -8,6 +8,7 @@ from .clients import _llm_get
 import json
 import re
 import unicodedata
+import hashlib
 
 
 def get_recommendations(user, query, media_types, force_refresh=False):
@@ -41,7 +42,8 @@ def get_recommendations(user, query, media_types, force_refresh=False):
 def _recommend_cache_key(user, query, media_types):
     types = ",".join(sorted(media_types))
     q = query.strip().lower()
-    return f'rec:{user.id}:{types}:{q}'
+    digest = hashlib.sha256(q.encode('utf-8')).hexdigest()[:16]
+    return f'rec:{user.id}:{types}:{digest}'
 
 
 # First Step: extract filters from user query using LLM
