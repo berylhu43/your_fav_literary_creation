@@ -1,10 +1,13 @@
 from django.core.cache import cache
+from django.db.models import Count, Q
 from datetime import date
-import json
 from catalog.clients import _tmdb_get, _google_books_get
 from reviews.models import Review
 from catalog.models import Genre, Catalog
 from .clients import _llm_get
+import json
+import re
+import unicodedata
 
 
 def get_recommendations(user, query, media_types, force_refresh=False):
@@ -24,13 +27,14 @@ def get_recommendations(user, query, media_types, force_refresh=False):
             return cached
 
     filters = _extract_filters(query, media_types)
-    samples = _sample_reviews(user, filters, media_types, per_bucket=15)
+    samples = _sample_reviews(user, filters, media_types, per_bucket=12)
     prompt = _build_recommend_prompt(query, media_types, samples, filters)
-    raw = _llm_get([{'role': 'user', 'content': prompt}], temperature=0.9)
+    raw = _llm_get([{'role': 'user', 'content': prompt}], thinking={'type': 'enabled'}, reasoning_effort='high')
     result = _parse(raw) if raw else []
     result = _filter_seen(user, result, media_types)   
     result = result[:10]
     cache.set(key, result, 60 * 60)
+    print(f'>>> final result: {result!r}')
     return result
 
 # get cache
@@ -47,7 +51,7 @@ def _extract_filters(query, media_types):
     Returns a dict of filters, e.g. {'genre': 'sci-fi', 'year': 2020}
     """
     prompt = _build_extract_prompt(query, media_types)
-    raw = _llm_get([{'role': 'user', 'content': prompt}], temperature=0.2)
+    raw = _llm_get([{'role': 'user', 'content': prompt}], temperature=0.2, thinking={'type': 'disabled'}, reasoning_effort='low')
     print(f'>>> extract raw: {raw!r}') 
     if raw is None:
         return {}
@@ -64,37 +68,51 @@ def _build_extract_prompt(query, media_types):
     """Build a prompt that turns the user's free-text request into a
     structured filter JSON."""
     genre_names = list(Genre.objects.filter(catalogs__media_type__in=media_types)
-                       .distinct().values_list('name', flat=True))
+                       .distinct().order_by('name').values_list('name', flat=True))
     genre_list = ', '.join(genre_names)
     today = date.today().isoformat()
     return (
         "You are a filter extractor for a media recommendation app. "
         "Given a user's free-text request for what they want to watch or read, "
         "extract structured search filters.\n\n"
-        f"User request: \"{query}\"\n\n"
         f"Available genres (choose ONLY from these, use the exact spelling): "
         f"{genre_list}\n\n"
-        f"Today's date: {today}\n\n"
         "Rules:\n"
         "- For any field you cannot infer, use null (or [] for genres).\n"
         "- 'genres': a list of genre names implied by the request. "
-        "- For 'genres', return only names from the list above, verbatim. "
-        "If none fit, return [].\n"
+        "Return 2-3 genres — pick the ones most central to the request. "
+        "Do not return just one unless the request names a single genre explicitly. "
         "For mood or occasion requests (e.g. 'first date at home', 'something to watch with "
         "family'), infer suitable genres yourself (e.g. Romance, Comedy, Family).\n"
         "- 'rating_min' / 'rating_max': a 0-5 scale. Only set these if the "
         "request implies a quality bar (e.g. 'hidden gems', 'only the best'). "
         "For casual requests leave them null.\n"
         "- 'artist': a person's name if the request names one (actor, director, "
-        "author), else null.\n"
+        "author), else null. Return the person's full name in English/Latin script\n"
         "- 'year_min' / 'year_max': set these if the request implies a time "
         "period (e.g. '90s movies' -> 1990 to 1999), else null.\n\n"
         "Return this exact json shape:\n"
         '{"genres": [], "rating_min": null, "rating_max": null, '
-        '"artist": null, "year_min": null, "year_max": null}'
+        '"artist": null, "year_min": null, "year_max": null}\n\n'
+        f"Today's date: {today}\n\n"
+        f"User request: \"{query}\""         
     )
 
 # Second Step: sample reviews from user history using ORM
+DIRECTOR_ROLE = 'director'      
+DIRECTOR_LIMIT = 2
+
+def _director_key(catalog):
+    """
+    Artist id of the director, for de-duplication.
+    None when there's no director credit (books, some tv, incomplete data).
+    Reads from prefetched credits — no extra query.
+    """
+    for credit in catalog.credits.all():
+        if credit.role == DIRECTOR_ROLE:
+            return credit.artist_id
+    return None
+
 def _sample_reviews(user, filters, media_types, per_bucket=10):
     """
     Sample reviews from user history using ORM.
@@ -112,7 +130,7 @@ def _sample_reviews(user, filters, media_types, per_bucket=10):
 
     artist = filters.get('artist')
     if artist:
-        qs = qs.filter(catalog__credit__artist__name__icontains=artist)
+        qs = qs.filter(catalog__credits__artist__name__icontains=artist)
 
     year_min = filters.get('year_min')
     if year_min:
@@ -128,14 +146,46 @@ def _sample_reviews(user, filters, media_types, per_bucket=10):
     if rating_max is not None:
         qs = qs.filter(rating__lte=rating_max)
 
-    qs = qs.select_related('catalog').distinct().order_by('-rating')
+    # sort by more matching genres
+    if genres:
+        qs = qs.annotate(
+            genre_match=Count(
+                'catalog__genres',
+                filter=Q(catalog__genres__name__in=genres),
+                distinct=True,
+            )
+        ).order_by('-rating', '-genre_match')
+    else:
+        qs = qs.order_by('-rating')
 
+    # pull credits + artists in one go so _director_key doesn't cause N+1
+    qs = (qs.select_related('catalog')
+            .prefetch_related('catalog__credits')
+            .distinct())
+
+    # collection de-deup per bucket
     buckets = {}
+    collections = set()
+    director_count = {}
     for review in qs:
+        catalog = review.catalog
+        cid = catalog.collection_id
+    
+        if cid and cid in collections:
+            continue
+
+        dkey = _director_key(catalog)
+        if dkey and director_count.get(dkey, 0) >= DIRECTOR_LIMIT:
+            continue
+
         key = int(float(review.rating))
         bucket = buckets.setdefault(key, [])
         if len(bucket) < per_bucket:
             bucket.append(review)
+            if cid:
+                collections.add(cid)
+            if dkey:
+                director_count[dkey] = director_count.get(dkey, 0) + 1
     result = [review for bucket in buckets.values() for review in bucket]
     print(f'>>> sampled {len(result)} reviews: '
           f'{[r.catalog.title for r in result]}')
@@ -181,25 +231,23 @@ def _build_recommend_prompt(query, media_types, samples, filters):
     return (
         "You are a recommendation engine for a personal media tracker. "
         "Recommend works the user is likely to enjoy but has NOT seen yet.\n\n"
+        "Rules:\n"
+        "- Recommend 15 works.\n"
+        "- Ground your picks in the user's taste.\n"
+        "- Every recommendation must satisfy ALL hard constraints listed below.\n"
+        "- If the history is empty or has fewer than 5 useful signals, fill the "
+        "rest using your own knowledge of well-regarded works that match the "
+        "request AND the hard constraints.\n"
+        "- Do NOT recommend any title already listed in the history below.\n"
+        f"- Every recommendation's media_type must be one of: {types}.\n\n"
         f"What the user is looking for: \"{query}\"\n"
         f"Today's date: {today}\n\n"
         f"Media types to recommend: {types}\n\n"
         f"{constraint_block}"
-        "The user's past ratings relevant to this request "
-        "(their taste signal):\n"
+        "The user's past ratings relevant to this request: \n"
         f"{history}\n\n"
-        "Rules:\n"
-        "- Recommend 15 works.\n"
-        "- Ground your picks in the user's taste above when possible.\n"
-        "- Every recommendation must satisfy ALL hard constraints listed above.\n"
-        "- If the history is empty or has fewer than 5 useful signals, fill the "
-        "rest using your own knowledge of well-regarded works that match the "
-        "request AND the hard constraints.\n"
-        "- Do NOT recommend any title already listed in the history above.\n"
-        f"- Every recommendation's media_type must be one of: {types}.\n"
-        "- For each recommendation, provide a one-sentence reason why the user would like it.\n\n"
         "Return this exact json shape:\n"
-        '{"recommendations": [{"title": "...", "media_type": "...", "year": "...", "reason": "..."}]}'
+        '{"recommendations": [{"title": "...", "media_type": "...", "year": "...", "reason": "..."}]}\n'
     )
 
 def _parse(raw):
@@ -212,7 +260,18 @@ def _parse(raw):
 
 # filter duplicate
 def _norm_title(t):
-    return (t or '').strip().lower()
+    """Normalize for comparison: strip accents, punctuation, articles, spaces."""
+    if not t:
+        return ''
+    # é -> e, ō -> o
+    t = unicodedata.normalize('NFKD', t)
+    t = ''.join(c for c in t if not unicodedata.combining(c))
+    t = t.lower().strip()
+    # drop leading articles (en/fr/es) so "The X" == "X" == "La X"
+    t = re.sub(r'^(the|a|an|le|la|les|el|los|il)\s+', '', t)
+    # drop everything that isn't a letter or digit
+    t = re.sub(r'[^a-z0-9\u4e00-\u9fff]+', '', t)
+    return t
 
 
 def _filter_seen(user, recommendations, media_types):
