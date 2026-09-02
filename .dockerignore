@@ -1,0 +1,13 @@
+.venv/
+.git/
+.env
+db.sqlite3
+__pycache__/
+*.pyc
+.DS_Store
+.douban_import_cache/
+.backfill_cache/
+import_data/
+media/
+node_modules/
+staticfiles/

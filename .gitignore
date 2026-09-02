@@ -8,5 +8,8 @@ __pycache__/
 
 # import data
 import_data/
-.douban_import_cache/
 match_report.csv
+
+# cache
+.douban_import_cache/
+.backfill_cache/

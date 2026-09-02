@@ -440,6 +440,7 @@ The REST API is a thin DRF layer over the existing service functions — it **gr
 | REST API — artist endpoint | ✅ Implemented |
 | REST API — accounts (register / logout) | ✅ Implemented |
 | `creator` field removal (cleanup migration) | ⬜ Deferred |
+｜email notification e.g. forget password｜⬜ Deferred |
 | React frontend | ✅ Implemented |
 
 *Legend: ✅ implemented · 🚧 in progress · ⬜ planned, not started · 📐 designed, not implemented · 💭 future / blocked on earlier stage*
