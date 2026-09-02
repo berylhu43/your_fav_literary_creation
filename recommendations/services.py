@@ -1,5 +1,7 @@
 from django.core.cache import cache
 from django.db.models import Count, Q
+from django.db.models import F
+from django.db.models.functions import Abs, Coalesce
 from datetime import date
 from catalog.clients import _tmdb_get, _google_books_get
 from reviews.models import Review
@@ -9,6 +11,7 @@ import json
 import re
 import unicodedata
 import hashlib
+
 
 
 def get_recommendations(user, query, media_types, force_refresh=False):
@@ -148,7 +151,12 @@ def _sample_reviews(user, filters, media_types, per_bucket=10):
     if rating_max is not None:
         qs = qs.filter(rating__lte=rating_max)
 
-    # sort by more matching genres
+    # sort by more matching genres and taste difference with average vote
+    qs = qs.annotate(
+        divergence=Abs(
+        F('rating') * 2 - Coalesce(F('catalog__vote_average'), F('rating') * 2)
+        )
+    )
     if genres:
         qs = qs.annotate(
             genre_match=Count(
@@ -156,9 +164,9 @@ def _sample_reviews(user, filters, media_types, per_bucket=10):
                 filter=Q(catalog__genres__name__in=genres),
                 distinct=True,
             )
-        ).order_by('-rating', '-genre_match')
+        ).order_by('-rating', '-genre_match',  '-divergence')
     else:
-        qs = qs.order_by('-rating')
+        qs = qs.order_by('-rating', '-divergence')
 
     # pull credits + artists in one go so _director_key doesn't cause N+1
     qs = (qs.select_related('catalog')
@@ -241,7 +249,8 @@ def _build_recommend_prompt(query, media_types, samples, filters):
         "rest using your own knowledge of well-regarded works that match the "
         "request AND the hard constraints.\n"
         "- Do NOT recommend any title already listed in the history below.\n"
-        f"- Every recommendation's media_type must be one of: {types}.\n\n"
+        f"- Every recommendation's media_type must be one of: {types}.\n"
+        "- For each recommendation, provide a one-sentence reason why the user would like it.\n\n"
         f"What the user is looking for: \"{query}\"\n"
         f"Today's date: {today}\n\n"
         f"Media types to recommend: {types}\n\n"
