@@ -436,11 +436,11 @@ The REST API is a thin DRF layer over the existing service functions — it **gr
 | REST API — catalog select / persist-on-click (`POST /select/`) | ✅ Implemented |
 | API routes split per app (`catalog/api_urls.py`, `reviews/api_urls.py`) | ✅ Implemented |
 | `discovery_home` logic extracted into services | ✅ Implemented |
-| REST API — recommendations endpoint | ⬜ Not yet |
+| REST API — recommendations endpoint | ✅ Implemented |
 | REST API — artist endpoint | ✅ Implemented |
-| REST API — accounts (register / logout) | ⬜ Not yet |
+| REST API — accounts (register / logout) | ✅ Implemented |
 | `creator` field removal (cleanup migration) | ⬜ Deferred |
-| React frontend | 💭 Future (Stage 4, after core endpoints) |
+| React frontend | ✅ Implemented |
 
 *Legend: ✅ implemented · 🚧 in progress · ⬜ planned, not started · 📐 designed, not implemented · 💭 future / blocked on earlier stage*
 

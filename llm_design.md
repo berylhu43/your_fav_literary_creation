@@ -198,6 +198,6 @@ Token usage is logged inside `_llm_get` (`resp.usage`), so both calls report pro
 | Multi-turn interaction | ⬜ TODO ③ |
 | User taste store | ⬜ TODO ① |
 | Balanced sampling by media_type | ⬜ TODO ⑤ |
-| Loading state | ⬜ TODO ⑦ |
+| Loading state | ✅ Implemented |
 
 *Legend: ✅ implemented · 🚧 partial / in progress · ⬜ planned*
