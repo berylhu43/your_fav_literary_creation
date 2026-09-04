@@ -41,6 +41,14 @@ The project is built primarily as a hands-on exercise to consolidate backend kno
 | Caching (dev) | **Django LocMemCache** | Caches external API lists (e.g. popular feeds) with a TTL. |
 | Recommendations (later phase) | **LLM API** | Reads stored ratings/reviews as input. |
 | API layer | **Django REST Framework** | Grows on the service layer (§8.16); token auth; serves a future React frontend. |
+| WSGI server (production) | **Gunicorn** | Replaces `runserver`, which is dev-only. |
+| Static files (production) | **WhiteNoise** | Serves Django admin's CSS/JS with no nginx in front (§8.21). |
+| Containerization | **Docker** | One image, built for `linux/amd64`. |
+| Image registry | **Amazon ECR** | Private registry; ECS pulls from here. |
+| Backend hosting | **Amazon ECS Express Mode** (Fargate) | Provisions ALB, TLS cert, autoscaling, CloudWatch logs. |
+| Database (production) | **Amazon RDS PostgreSQL** | `db.t4g.micro`, single-AZ. |
+| Frontend hosting | **AWS Amplify Hosting** | Builds from git; CDN + HTTPS. |
+| Config / secrets | **Environment variables** | `.env` + `python-dotenv` locally; ECS/Amplify env vars in production. |
 
 ---
 
@@ -309,6 +317,50 @@ The `Artist` table holds people from two sources (TMDB cast/crew; Google Books a
 
 `creator` was the Stage-1 plain-text stand-in for "who made this" (§8.6). Once Artist/Credit landed in Stage 2, creator information is carried by credits (directors / actors / authors), so `creator` is no longer populated for API-sourced works and is dropped from API serializer output. The DB column remains pending a cleanup migration — deferred because it may hold manual-entry data and the manual add flow may still reference it.
 
+### 8.19 One image, many environments: config via environment variables
+ 
+`settings.py` reads every environment-dependent value from `os.environ` — `DJANGO_SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, the `DATABASE_*` group, `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, and the three API keys. Locally these come from a git-ignored `.env` via `python-dotenv`; in production they are injected by the ECS task definition. **The same image runs in both places** — nothing about the environment is baked into the artifact.
+ 
+Two details worth keeping:
+ 
+- **The database backend switches on the presence of `DATABASE_HOST`.** Set → PostgreSQL branch; unset → the SQLite branch. Local development therefore needs no change at all, while production needs no code path of its own. Inside the PostgreSQL branch the remaining values use `os.environ['...']` (not `.get`), so declaring "I want Postgres" and then omitting the password fails immediately rather than passing `None` to the driver.
+- **`DEBUG` defaults to `False`.** A forgotten variable should fail into the safe state, not expose stack traces. The same reasoning makes `DJANGO_SECRET_KEY` a bare `os.environ[...]` lookup: a missing signing key must crash at import, not silently degrade every signed cookie in the system. (This fired for real during the first Docker build — a `DJANGO_SECRET_KEY` / `SECRET_KEY` name mismatch surfaced as a `KeyError` at build time instead of as a mysterious auth bug in production.)
+### 8.20 The image carries code, never secrets
+ 
+`.dockerignore` excludes `.env`, `db.sqlite3`, `import_data/`, `media/`, and the two cache directories. A container image is a portable artifact that gets pushed to a registry and pulled by machines you do not control; anything baked into it is readable by anyone who can pull it. So credentials arrive at **runtime** — `docker run -e` locally, task-definition environment variables in ECS.
+ 
+Corollary: `load_dotenv()` is a no-op inside the container (there is no `.env` to load), which is correct rather than a bug. It is a local-development convenience, not the production mechanism.
+ 
+### 8.21 Managed container hosting over a self-managed VPS
+ 
+Two shapes were considered: a VPS (rent a Linux box, run `docker-compose`, configure nginx/TLS/firewall by hand) or managed container hosting (hand over an image, let the platform run it).
+ 
+**Chosen: managed.** The deciding factor was that a prior Spring Boot course used exactly this shape (ECR → App Runner → RDS, with Gradle as the build step) and left the concepts half-understood. Rebuilding the same architecture deliberately — with Docker replacing Gradle as the packaging step — turns those service names into things with known jobs. A VPS would have taught useful but different material (nginx, systemd, certbot).
+ 
+**Implementation note:** App Runner stopped accepting new customers on 2026-04-30, so the runtime layer is **ECS Express Mode** instead. It fills the same slot — image in, HTTPS URL out — and additionally provisions the ALB, target groups, ACM certificate, autoscaling policy, and CloudWatch log group, all of which remain directly editable in the account. Everything upstream of the runtime (Dockerfile, ECR, RDS, IAM) was unaffected by the substitution, which is itself the argument for keeping the layers separable.
+ 
+**Consequence for static files:** with no nginx in the stack, Django serves its own static assets, which is why WhiteNoise is in the middleware chain (immediately after `SecurityMiddleware`) and `collectstatic` runs at image-build time. Django 6.1's `STORAGES` dict is used, not the deprecated `STATICFILES_STORAGE`.
+ 
+### 8.22 RDS with public access, restricted by security group
+ 
+The database is reachable over the public internet, guarded by security-group rules rather than by network isolation. This is **not** the production-correct answer — that would be a private subnet plus a VPC connector — and it is recorded here as a deliberate trade-off, not an oversight.
+ 
+Two things bought it: the runtime connects without any VPC plumbing, and `migrate` / `loaddata` / `dbshell` can be run from a laptop, which is a capability the project genuinely needs and would otherwise have to solve some other way.
+ 
+The inbound rules on `fav-media-db-sg` are the actual security boundary, and there are two:
+ 
+1. **A home IP (`/32`)** — for local `migrate` and inspection. This breaks whenever the ISP reassigns the address, which is expected maintenance, not a fault.
+2. **The ECS service's security group, referenced as a source group** — for the application. Source-group references are used rather than IPs because Fargate task IPs change on every deployment; an IP-based rule would need re-editing constantly.
+The second rule was the last thing missing when everything else already worked: the login page rendered (no DB query) while submitting the form hung (DB query). That split is a useful diagnostic in itself.
+ 
+### 8.23 Lazy client initialization: import time is not use time
+ 
+`recommendations/clients.py` originally built the OpenAI-compatible client at module scope. The `OpenAI(...)` constructor rejects a missing key, so the module could not be imported without `DEEPSEEK_API_KEY` present — and because the import chain runs `urls.py → recommendations.urls → views → services → clients`, **a missing LLM key took down every route in the project, including `/admin/`**.
+ 
+The client is now built inside a function decorated with `@lru_cache(maxsize=1)`: same single-instance behaviour, but construction happens on first call instead of on import. The key is required when the LLM is actually used, and nowhere else.
+ 
+The general rule: **anything constructed at module scope becomes a hard dependency of importing that module.** External clients, connections, and anything else that can fail belong behind a function call.
+
 ---
 
 ## 9. Phased Delivery
@@ -363,6 +415,39 @@ The REST API is a thin DRF layer over the existing service functions — it **gr
 - **accounts** — register, login (token), logout
 
 > **Endpoint list, request/response shapes, and auth requirements live in [api_contract_for_frontend.md](./api_contract_for_frontend.md)** — the single source of truth for the wire contract. This section records only the backend *decisions* behind the API, not its surface.
+
+
+### Stage 5 — Production deployment (AWS) — *complete*
+ 
+Backend and frontend deploy independently to different services, and talk over CORS.
+ 
+```
+Amplify Hosting  ──(HTTPS, CDN)──>  browser
+      │                                │
+   React build                    fetch() to API
+                                       ▼
+ECR ──image──> ECS Express Mode (Fargate) ──> RDS PostgreSQL
+                     │
+                ALB + ACM cert + autoscaling + CloudWatch
+```
+ 
+**Backend pipeline.** `docker build --platform linux/amd64` → tag with the ECR URI → `docker push` → ECS *Update service* with **Force new deployment**.
+ 
+- `--platform linux/amd64` is mandatory on Apple Silicon; the default `arm64` build pushes fine and then fails to start.
+- `docker tag` creates a pointer, not a copy, so a fresh build must be re-tagged before pushing or the old image is silently re-pushed as "successful".
+- ECR login tokens expire after 12 hours; a `403 Forbidden` on push means re-authenticate, not a permissions problem.
+**Frontend pipeline.** `git push` → Amplify builds (`npm run build`, output `dist`) and deploys. `VITE_API_BASE_URL` is set in Amplify's environment variables, not committed — the local `.env` keeps pointing at `localhost:8000`, so development is unaffected. Only `VITE_`-prefixed variables reach the bundle, and everything that reaches the bundle is public.
+ 
+**Health checks.** The ALB target group probes `/admin/login/`, chosen because it returns a plain `200` without authentication. The default `/` was unusable: it routes to recommendations, which redirects. There is no dedicated health endpoint yet (see debt below).
+ 
+**Data migration, SQLite → Postgres.** `dumpdata --natural-foreign --natural-primary -e contenttypes -e auth.Permission -e sessions`, then `migrate` and `loaddata` against RDS. Three things learned:
+ 
+- `contenttypes` and `auth.Permission` **must** be excluded — both are regenerated by `migrate`, and their auto-increment ids will not line up across databases.
+- The export and the import are separate processes with separate environments. Running `loaddata` without the `DATABASE_*` variables set writes the dump straight back into local SQLite and reports success.
+- **SQLite does not enforce `VARCHAR(n)`.** Twenty `Catalog` rows held `cover_url` values of 248–269 characters in a `max_length=200` column, written by the import scripts and accepted silently for months. Postgres rejected them on insert. The fix was the model (`URLField(max_length=500)`), not the data — `varchar(n)` in Postgres is variable-length, so a generous ceiling costs nothing. **Any long-lived SQLite database may contain values its own schema forbids; the migration is when you find out.**
+**IAM.** An IAM user with an access key for CLI work, plus two service roles created by Express Mode: `ecsTaskExecutionRole` (pull image, write logs) and `ecsInfrastructureRoleForExpressServices` (provision the ALB and friends). The distinction that finally landed: a **user** is a person's identity, a **role** is a service's. A third kind, the *task role*, is for the application calling AWS APIs — unused here, since Django talks to nothing in AWS but Postgres.
+ 
+Two IAM incidents worth remembering. A stale `aws_session_token` left in `~/.aws/credentials` from a course account made a brand-new access key fail with `InvalidClientTokenId` — long-term credentials (`AKIA…`) take two fields, temporary ones (`ASIA…`) take three, and `aws configure` overwrites only the fields it asks about. And the infrastructure role briefly lacked `ec2:DescribeAccountAttributes`, stalling provisioning with `AccessDenied` before resolving on its own.
 
 **Decisions & insights worth keeping:**
 
@@ -442,6 +527,18 @@ The REST API is a thin DRF layer over the existing service functions — it **gr
 | `creator` field removal (cleanup migration) | ⬜ Deferred |
 ｜email notification e.g. forget password｜⬜ Deferred |
 | React frontend | ✅ Implemented |
+| `settings.py` driven by environment variables | ✅ Implemented |
+| Gunicorn + WhiteNoise (production serving) | ✅ Implemented |
+| `Dockerfile` + `.dockerignore` | ✅ Implemented |
+| ECR repository + image push | ✅ Implemented |
+| ECS Express Mode service (Fargate + ALB + TLS) | ✅ Implemented |
+| RDS PostgreSQL instance | ✅ Implemented |
+| Data migration SQLite → RDS | ✅ Implemented |
+| `cover_url` widened to `max_length=500` | ✅ Implemented |
+| Lazy LLM client init (`@lru_cache`) | ✅ Implemented |
+| Frontend deployed to Amplify Hosting | ✅ Implemented |
+| CORS / CSRF configured for the Amplify origin | ✅ Implemented |
+| AWS budget alert | ✅ Implemented |
 
 *Legend: ✅ implemented · 🚧 in progress · ⬜ planned, not started · 📐 designed, not implemented · 💭 future / blocked on earlier stage*
 
@@ -458,3 +555,29 @@ Principles that guided the decisions above and should guide future ones:
 - **Don't rebuild what the framework provides.** Authentication, forms, generic views, and the ORM are used rather than reimplemented.
 - **Phased delivery: make it work, then make it good.** A working core first; extensibility designed in from day one; polish and enrichment later.
 - **Reproducible everything.** Seed data via migrations, so any clone of the project reaches the same state with `migrate`.
+- **Configuration is not code.** One artifact, many environments; anything that varies between them arrives at runtime. This is what made "add the Amplify origin to CORS" an environment-variable edit rather than a rebuild.
+- **Fail fast on missing configuration.** A `KeyError` at startup beats a `None` that quietly corrupts behaviour for months. Applied to `DJANGO_SECRET_KEY` and the `DATABASE_*` group; deliberately *not* yet applied to the three API keys, which still use `.get`.
+- **Import time is not use time.** Anything built at module scope becomes a hard requirement of importing that module — and via the URL conf, of serving any request at all.
+- **Deploy the vertical slice before adding features.** Deployment surfaced problems no amount of local development would have: a schema violation SQLite had tolerated for months, an import-time coupling, three separate network boundaries. Each was cheap to fix on a small system.
+
+
+## 12. Techinical Debt
+### New subsection: Deployment debt
+ 
+Ordered roughly by how much each would hurt if ignored.
+ 
+| # | Debt | Why it exists | Trigger to fix |
+|---|---|---|---|
+| 1 | **Unexplained traffic** — roughly 500–1000 requests/minute, almost all `200`, starting ~06:00 and stopping overnight. Not health checks (those are excluded from `RequestCount`), not scanners (only 4 `4xx` across hours), not a browser tab (persisted after closing all of them). Drives CPU to 70–90% and pins autoscaling at `max=2`. | Never identified. | Before leaving the service running unattended — it costs money and hides the real load profile. |
+| 2 | **Access logging not confirmed in production** — `--access-logfile -` and `--workers 2` verified working in the local image, but deployed tasks still boot three workers, so ECS is running an older image. Likely needs *Force new deployment*, or a unique tag. | Ran out of session. | Immediately; #1 cannot be diagnosed without it. |
+| 3 | **`:latest` only** — no immutable tags, so there is nothing to roll back to and ECS caches stale digests. One deployment already failed with `CannotPullContainerError` on an orphaned digest. | Simplicity while learning. | Same session as #2 — switch to a git-SHA or timestamp tag plus `latest`. |
+| 4 | **`ALLOWED_HOSTS = *`** | The ALB health check sends the container's private IP as the `Host` header, which the real hostname list rejects. | Fix together with a `/health/` endpoint, which removes the reason. |
+| 5 | **No `/health/` endpoint** — probing `/admin/login/` renders a full template through the entire middleware chain. | Avoided a code change mid-deployment. | With #4. |
+| 6 | **`AdministratorAccess` on the CLI IAM user** | Getting stuck in permission errors would have buried the actual subject. | Now that the service list is known, narrow to ECR + ECS + RDS + EC2-describe. |
+| 7 | **RDS publicly accessible** (§8.22) | Avoids VPC-connector complexity; enables local `migrate`. | Only if the data stops being disposable. |
+| 8 | **`LocMemCache` is per-process** — 2 tasks × N workers = N independent caches, all lost on redeploy, so the 1-hour TMDB cache rarely hits. | Redis is a separate service. | When TMDB rate limits bite or the cache miss rate matters. |
+| 9 | **Email silenced** via `SILENCED_SYSTEM_CHECKS = ['mail.E001']` | No feature needs it yet. | Password reset, or anything else that sends mail. |
+| 10 | **Idle Elastic IPs** — seven allocated, some possibly unattached and billing hourly. | Left over from failed provisioning. | Audit with `aws ec2 describe-addresses` and release any with a null `AssociationId`. |
+| 11 | **CPU sizing unverified** — 0.5 vCPU / 1 GB runs at 70–90% CPU and 25% memory. The `--workers 3 → 2` change is built but not deployed (#2). | Blocked on #1 and #2. | After the traffic source is known. |
+ 
+**Running cost, roughly $35–40/month:** RDS ~$15, ALB ~$17, Fargate ~$5–8. Amplify is negligible at this scale. ECS service and RDS can both be deleted and rebuilt in well under an hour, since the image persists in ECR — worth doing during any long idle period. A budget alert is configured.

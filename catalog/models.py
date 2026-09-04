@@ -28,7 +28,7 @@ class Catalog(models.Model):
     runtime = models.PositiveIntegerField(null=True, blank=True)
     episodes = models.PositiveIntegerField(null=True, blank=True)
 
-    cover_url = models.URLField(blank=True)
+    cover_url = models.URLField(max_length=500, blank=True)
     description = models.TextField(blank=True)
 
     vote_average = models.DecimalField(
@@ -71,7 +71,7 @@ class Artist(models.Model):
         choices=Catalog.Source.choices,
         blank=True,
     )
-    profile_url = models.URLField(blank=True)
+    profile_url = models.URLField(max_length=500, blank=True)
 
     def __str__(self):
         return self.name

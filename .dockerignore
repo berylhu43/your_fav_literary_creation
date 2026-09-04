@@ -11,3 +11,4 @@ import_data/
 media/
 node_modules/
 staticfiles/
+*.md

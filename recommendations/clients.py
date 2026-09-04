@@ -1,10 +1,14 @@
 import os
+from functools import lru_cache
 from openai import OpenAI
 
-_client = OpenAI(
-    api_key=os.getenv('DEEPSEEK_API_KEY'),
-    base_url='https://api.deepseek.com',
-)
+@lru_cache(maxsize=1)
+def _get_client():
+    return OpenAI(
+        api_key=os.environ['DEEPSEEK_API_KEY'],
+        base_url='https://api.deepseek.com', 
+    )
+
 
 def _llm_get(messages, model='deepseek-v4-flash', json_mode=True, temperature=None,
              thinking=None, reasoning_effort=None):
@@ -12,6 +16,7 @@ def _llm_get(messages, model='deepseek-v4-flash', json_mode=True, temperature=No
     Low-level: query DeepSeek API, handling timeout/errors.
     Returns the raw response string, or None on failure.
     """
+    _client = _get_client()
     try:
         kwargs = {
             'model': model,
