@@ -2,8 +2,9 @@ import requests
 from django.conf import settings
 from django.core.cache import cache
 
-TMDB_BASE_URL = 'https://api.themoviedb.org/3'
-GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes'
+TMDB_BASE_URL = "https://api.themoviedb.org/3"
+GOOGLE_BOOKS_URL = "https://www.googleapis.com/books/v1/volumes"
+
 
 # SEARCH
 def _tmdb_get(path, params=None):
@@ -11,16 +12,17 @@ def _tmdb_get(path, params=None):
     Low-level: make one GET request to TMDB, handling timeout/errors.
     Returns parsed JSON dict, or None on failure.
     """
-    try: 
+    try:
         response = requests.get(
-            f'{TMDB_BASE_URL}{path}',
-            params={'api_key':settings.TMDB_API_KEY, **(params or {})},
+            f"{TMDB_BASE_URL}{path}",
+            params={"api_key": settings.TMDB_API_KEY, **(params or {})},
             timeout=5,
         )
         response.raise_for_status()
         return response.json()
     except requests.RequestException:
         return None
+
 
 def _google_books_get(path, params=None):
     """
@@ -29,9 +31,9 @@ def _google_books_get(path, params=None):
     """
     try:
         response = requests.get(
-            f'{GOOGLE_BOOKS_URL}{path}',
-            params={'key':settings.GOOGLE_BOOKS_API_KEY, **(params or {})},
-            timeout = 5,
+            f"{GOOGLE_BOOKS_URL}{path}",
+            params={"key": settings.GOOGLE_BOOKS_API_KEY, **(params or {})},
+            timeout=5,
         )
         response.raise_for_status()
         return response.json()
@@ -43,130 +45,133 @@ def search_movies(query):
     """
     Search by film name from TMDB api and return candidates.
     """
-    data = _tmdb_get('/search/movie', {'query': query})
-    return data.get('results', [])[:20] if data else []
+    data = _tmdb_get("/search/movie", {"query": query})
+    return data.get("results", [])[:20] if data else []
 
 
 def search_tv(query):
     """
     Search by tv series name from TMDB api and return candidates.
     """
-    data = _tmdb_get('/search/tv', {'query': query})
-    return data.get('results', [])[:20] if data else []
+    data = _tmdb_get("/search/tv", {"query": query})
+    return data.get("results", [])[:20] if data else []
+
 
 def search_books(query):
     """
     Search by books name from google books api and return candidates.
     """
-    data = _google_books_get('', {'q':query, 'orderBy': 'relevance'})
-    return data.get('items', [])[:20] if data else []
+    data = _google_books_get("", {"q": query, "orderBy": "relevance"})
+    return data.get("items", [])[:20] if data else []
+
 
 def get_movie_details(tmdb_id):
     """
     Fetch full details for one movie from TMDB by its id.
     Returns the movie dict, or None on failure.
     """
-    return _tmdb_get(f'/movie/{tmdb_id}')
+    return _tmdb_get(f"/movie/{tmdb_id}")
+
 
 def get_tv_details(tmdb_id):
     """
     Fetch full details for one tv from TMDB by its id.
     Returns the tv dict, or None on failure.
     """
-    return _tmdb_get(f'/tv/{tmdb_id}')
+    return _tmdb_get(f"/tv/{tmdb_id}")
+
 
 def get_book_details(volume_id):
     """
     Fetch full details for one book from GOOGLE books by its id.
     Returns the book dict, or None on failure.
     """
-    return _google_books_get(f'/{volume_id}')
+    return _google_books_get(f"/{volume_id}")
 
 
 # DISCOVERY
 def get_movie_genres():
-    data = _tmdb_get('/genre/movie/list')
-    return data.get('genres', []) if data else []
+    data = _tmdb_get("/genre/movie/list")
+    return data.get("genres", []) if data else []
 
 
 def discover_movies(genre_id=None):
     """
     Fetch popular movies from TMDB (by genre if exist).
     """
-    params = {'sort_by': 'popularity.desc'}
+    params = {"sort_by": "popularity.desc"}
     if genre_id:
-        params['with_genres'] = genre_id
-    data = _tmdb_get('/discover/movie', params)
-    return data.get('results', [])[:20] if data else []
+        params["with_genres"] = genre_id
+    data = _tmdb_get("/discover/movie", params)
+    return data.get("results", [])[:20] if data else []
 
 
 def get_tv_genres():
-    data = _tmdb_get('/genre/tv/list')
-    return data.get('genres', []) if data else []
+    data = _tmdb_get("/genre/tv/list")
+    return data.get("genres", []) if data else []
 
 
 def discover_tv(genre_id=None):
     """
     Fetch popular tv series from TMDB (by genre if exist).
     """
-    params = {'sort_by': 'popularity.desc'}
+    params = {"sort_by": "popularity.desc"}
     if genre_id:
-        params['with_genres'] = genre_id
-    data = _tmdb_get('/discover/tv', params)
-    return data.get('results', [])[:20] if data else []
-
+        params["with_genres"] = genre_id
+    data = _tmdb_get("/discover/tv", params)
+    return data.get("results", [])[:20] if data else []
 
 
 # CREDITS
 def get_movie_credits(external_id):
-    data = _tmdb_get(f'/movie/{external_id}/credits')
+    data = _tmdb_get(f"/movie/{external_id}/credits")
     if data is None:
         return [], []
-    return data.get('cast', []), data.get('crew', [])
+    return data.get("cast", []), data.get("crew", [])
+
 
 def get_tv_credits(external_id):
     # tv only return casts on credits page
-    data = _tmdb_get(f'/tv/{external_id}/credits')
+    data = _tmdb_get(f"/tv/{external_id}/credits")
     if data is None:
         return []
-    return data.get('cast', [])
+    return data.get("cast", [])
 
 
 # ARTIST
 def _credit_year(item):
-    date = item.get('release_date') or item.get('first_air_date') or ''
-    return date[:4] if date[:4].isdigit() else ''
+    date = item.get("release_date") or item.get("first_air_date") or ""
+    return date[:4] if date[:4].isdigit() else ""
+
 
 def _merge_crew(crew):
     merged = {}
     for c in crew:
-        key = (c['id'], c['media_type'])
+        key = (c["id"], c["media_type"])
         if key not in merged:
             entry = c.copy()
-            entry['jobs'] = []
+            entry["jobs"] = []
             merged[key] = entry
-        job = c.get('job')
-        if job and job not in merged[key]['jobs']:
-            merged[key]['jobs'].append(job)
+        job = c.get("job")
+        if job and job not in merged[key]["jobs"]:
+            merged[key]["jobs"].append(job)
     return list(merged.values())
 
+
 def get_artist_credits(external_id):
-    cache_key = f'artist_credits:{external_id}'
+    cache_key = f"artist_credits:{external_id}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
 
-    data = _tmdb_get(f'/person/{external_id}/combined_credits')
+    data = _tmdb_get(f"/person/{external_id}/combined_credits")
     if data is None:
-        return [], []      
+        return [], []
 
-    cast = sorted(data.get('cast', []), key=_credit_year, reverse=True)
-    crew = _merge_crew(data.get('crew', []))
+    cast = sorted(data.get("cast", []), key=_credit_year, reverse=True)
+    crew = _merge_crew(data.get("crew", []))
     crew.sort(key=_credit_year, reverse=True)
 
     result = (cast, crew)
-    cache.set(cache_key, result, 60 * 60)   
+    cache.set(cache_key, result, 60 * 60)
     return result
-
-
-

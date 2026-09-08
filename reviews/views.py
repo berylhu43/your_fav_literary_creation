@@ -1,66 +1,73 @@
-from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.shortcuts import get_object_or_404, redirect, render
+
 from catalog.models import Catalog
-from .models import Review
+
 from .forms import ReviewForm
+from .models import Review
 from .services import upsert_review
+
 
 @login_required
 def my_records(request):
-    reviews = (
-        request.user.reviews
-        .select_related('catalog')
-        .all()
-    )
+    reviews = request.user.reviews.select_related("catalog").all()
 
-    query = request.GET.get('q', '')
+    query = request.GET.get("q", "")
     if query:
         reviews = reviews.filter(catalog__title__icontains=query)
-    return render(request, 'reviews/my_records.html', {
-        'reviews': reviews,
-        'query': query,
-        })
+    return render(
+        request,
+        "reviews/my_records.html",
+        {
+            "reviews": reviews,
+            "query": query,
+        },
+    )
+
 
 @login_required
 def delete_record(request, pk):
     review = get_object_or_404(Review, pk=pk, user=request.user)
 
-    if request.method == 'POST':
+    if request.method == "POST":
         review.delete()
-        return redirect('reviews:my_records')
+        return redirect("reviews:my_records")
 
-    return render(request, 'reviews/delete_record.html', {'review': review})
+    return render(request, "reviews/delete_record.html", {"review": review})
+
 
 @login_required
 def change_record(request, pk):
     review = get_object_or_404(Review, pk=pk, user=request.user)
 
-    if request.method == 'POST':
+    if request.method == "POST":
         form = ReviewForm(request.POST, instance=review)
         if form.is_valid():
             form.save()
-            return redirect('reviews:my_records')
+            return redirect("reviews:my_records")
     else:
         form = ReviewForm(instance=review)
 
-    return render(request, 'reviews/change_record.html', {'form':form, 'review': review})
+    return render(
+        request, "reviews/change_record.html", {"form": form, "review": review}
+    )
 
 
 @login_required
 def add_record(request, pk):
     work = get_object_or_404(Catalog, pk=pk)
 
-    if request.method == 'POST':
+    if request.method == "POST":
         form = ReviewForm(request.POST)
         if form.is_valid():
             upsert_review(
                 user=request.user,
                 catalog=work,
-                rating=form.cleaned_data['rating'],
-                review_text=form.cleaned_data['review_text'],
+                rating=form.cleaned_data["rating"],
+                review_text=form.cleaned_data["review_text"],
             )
-            return redirect('catalog:detail', pk=work.pk)
+            return redirect("catalog:detail", pk=work.pk)
     else:
         form = ReviewForm()
 
-    return render(request, 'catalog/add_movie.html', {'form':form})
+    return render(request, "catalog/add_movie.html", {"form": form})

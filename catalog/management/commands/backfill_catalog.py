@@ -40,10 +40,11 @@ from django.core.management.base import BaseCommand, CommandError
 
 # --- adjust to your project layout --------------------------------------------
 from catalog.models import Catalog
-from catalog.services import _map_movie, _map_tv, _map_book
+from catalog.services import _map_book, _map_movie, _map_tv
+
 # ------------------------------------------------------------------------------
 
-STATE_DIR = '.backfill_cache'
+STATE_DIR = ".backfill_cache"
 RATE_LIMIT_SECONDS = 0.25
 
 MAPPERS = {
@@ -54,17 +55,17 @@ MAPPERS = {
 
 # Keys the mappers return that are NOT plain model fields — they're handled
 # separately at creation time (m2m / credits) and must never be assigned here.
-NON_FIELD_KEYS = {'genre_names', 'created_by', 'author_names'}
+NON_FIELD_KEYS = {"genre_names", "created_by", "author_names"}
 
 
 def _state_path(job):
-    return os.path.join(STATE_DIR, f'{job}.json')
+    return os.path.join(STATE_DIR, f"{job}.json")
 
 
 def _load_done(job):
     path = _state_path(job)
     if os.path.exists(path):
-        with open(path, encoding='utf-8') as f:
+        with open(path, encoding="utf-8") as f:
             return set(json.load(f))
     return set()
 
@@ -72,89 +73,108 @@ def _load_done(job):
 def _save_done(job, done):
     os.makedirs(STATE_DIR, exist_ok=True)
     path = _state_path(job)
-    tmp = path + '.tmp'
-    with open(tmp, 'w', encoding='utf-8') as f:
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(sorted(done), f)
-    os.replace(tmp, path)        # atomic: survives Ctrl-C mid-write
+    os.replace(tmp, path)  # atomic: survives Ctrl-C mid-write
 
 
 def _model_field_names():
     return {
-        f.name for f in Catalog._meta.get_fields()
-        if getattr(f, 'concrete', False) and not f.many_to_many
+        f.name
+        for f in Catalog._meta.get_fields()
+        if getattr(f, "concrete", False) and not f.many_to_many
     }
 
 
 class Command(BaseCommand):
-    help = ('Re-map existing Catalog rows from their source API and write back '
-            'the fields you name.')
+    help = (
+        "Re-map existing Catalog rows from their source API and write back "
+        "the fields you name."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--fields', nargs='+',
-            help='model field names to write, e.g. --fields vote_average collection_id')
+            "--fields",
+            nargs="+",
+            help="model field names to write, e.g. --fields vote_average collection_id",
+        )
         parser.add_argument(
-            '--all-fields', action='store_true',
-            help='write every plain field the mapper returns (excludes genres/credits)')
+            "--all-fields",
+            action="store_true",
+            help="write every plain field the mapper returns (excludes genres/credits)",
+        )
         parser.add_argument(
-            '--media-types', nargs='+', default=['movie'],
-            choices=['movie', 'tv', 'book'],
-            help='which media types to process (default: movie)')
+            "--media-types",
+            nargs="+",
+            default=["movie"],
+            choices=["movie", "tv", "book"],
+            help="which media types to process (default: movie)",
+        )
         parser.add_argument(
-            '--job',
-            help='name for the progress file; defaults to the field list, so a '
-                 'different field set tracks its own progress')
-        parser.add_argument('--dry-run', action='store_true',
-                            help='fetch and report, write nothing')
-        parser.add_argument('--limit', type=int,
-                            help='only process the first N rows')
-        parser.add_argument('--restart', action='store_true',
-                            help='ignore saved progress, process everything again')
-        parser.add_argument('--overwrite', action='store_true',
-                            help='also overwrite fields that already have a value '
-                                 '(default: only fill blanks/None)')
+            "--job",
+            help="name for the progress file; defaults to the field list, so a "
+            "different field set tracks its own progress",
+        )
+        parser.add_argument(
+            "--dry-run", action="store_true", help="fetch and report, write nothing"
+        )
+        parser.add_argument("--limit", type=int, help="only process the first N rows")
+        parser.add_argument(
+            "--restart",
+            action="store_true",
+            help="ignore saved progress, process everything again",
+        )
+        parser.add_argument(
+            "--overwrite",
+            action="store_true",
+            help="also overwrite fields that already have a value "
+            "(default: only fill blanks/None)",
+        )
 
     def handle(self, *args, **opts):
-        fields = opts['fields']
-        all_fields = opts['all_fields']
+        fields = opts["fields"]
+        all_fields = opts["all_fields"]
         if not fields and not all_fields:
-            raise CommandError('give --fields <names> or --all-fields')
+            raise CommandError("give --fields <names> or --all-fields")
 
         valid = _model_field_names()
         if fields:
             unknown = [f for f in fields if f not in valid]
             if unknown:
-                raise CommandError(f'not Catalog fields: {", ".join(unknown)}')
+                raise CommandError(f"not Catalog fields: {', '.join(unknown)}")
             bad = [f for f in fields if f in NON_FIELD_KEYS]
             if bad:
                 raise CommandError(
-                    f'{", ".join(bad)} are relations handled at creation time, '
-                    f'not plain fields — this command cannot set them')
+                    f"{', '.join(bad)} are relations handled at creation time, "
+                    f"not plain fields — this command cannot set them"
+                )
 
-        media_types = opts['media_types']
-        dry_run = opts['dry_run']
-        overwrite = opts['overwrite']
+        media_types = opts["media_types"]
+        dry_run = opts["dry_run"]
+        overwrite = opts["overwrite"]
 
-        job = opts['job'] or ('all_fields' if all_fields
-                            else '_'.join(sorted(fields)))
+        job = opts["job"] or ("all_fields" if all_fields else "_".join(sorted(fields)))
         job = f"{job}__{'_'.join(sorted(media_types))}"
-        done = set() if opts['restart'] else _load_done(job)
+        done = set() if opts["restart"] else _load_done(job)
 
-        qs = (Catalog.objects
-            .filter(media_type__in=media_types)
-            .exclude(external_id='')
+        qs = (
+            Catalog.objects.filter(media_type__in=media_types)
+            .exclude(external_id="")
             .exclude(source=Catalog.Source.MANUAL)
-            .order_by('id'))
+            .order_by("id")
+        )
 
         # key by media_type too: tmdb movie and tv ids share a namespace
-        targets = [c for c in qs if f'{c.media_type}:{c.external_id}' not in done]
-        if opts['limit']:
-            targets = targets[:opts['limit']]
+        targets = [c for c in qs if f"{c.media_type}:{c.external_id}" not in done]
+        if opts["limit"]:
+            targets = targets[: opts["limit"]]
 
         total = len(targets)
         self.stdout.write(
             f"job '{job}': {qs.count()} rows in scope, {len(done)} already done, "
-            f'{total} to process.' + ('  [DRY RUN]' if dry_run else ''))
+            f"{total} to process." + ("  [DRY RUN]" if dry_run else "")
+        )
         if not total:
             return
 
@@ -174,14 +194,16 @@ class Command(BaseCommand):
 
             if mapped is None:
                 failed += 1
-                self.stdout.write(self.style.WARNING(
-                    f'  fetch failed: {work.title} ({work.media_type} '
-                    f'id={work.external_id})'))
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"  fetch failed: {work.title} ({work.media_type} "
+                        f"id={work.external_id})"
+                    )
+                )
                 continue
 
             if all_fields:
-                wanted = [k for k in mapped
-                        if k not in NON_FIELD_KEYS and k in valid]
+                wanted = [k for k in mapped if k not in NON_FIELD_KEYS and k in valid]
             else:
                 # a field the mapper doesn't produce for this media type is
                 # simply skipped (tv has no collection_id, books have no runtime)
@@ -191,7 +213,7 @@ class Command(BaseCommand):
             for name in wanted:
                 new = mapped[name]
                 old = getattr(work, name)
-                if not overwrite and old not in (None, ''):
+                if not overwrite and old not in (None, ""):
                     continue
                 if old == new:
                     continue
@@ -205,24 +227,28 @@ class Command(BaseCommand):
                 written += 1
                 if dry_run and written <= 10:
                     self.stdout.write(
-                        f'  would set {", ".join(changed)} on {work.title}')
+                        f"  would set {', '.join(changed)} on {work.title}"
+                    )
             else:
                 unchanged += 1
 
-            done.add(f'{work.media_type}:{work.external_id}')
+            done.add(f"{work.media_type}:{work.external_id}")
 
             if i % 25 == 0:
                 if not dry_run:
                     _save_done(job, done)
-                self.stdout.write(f'  {i}/{total} …')
+                self.stdout.write(f"  {i}/{total} …")
 
         if not dry_run:
             _save_done(job, done)
 
-        self.stdout.write(self.style.SUCCESS(
-            f'\ndone. rows updated: {written}, already current: {unchanged}, '
-            f'failed: {failed}'))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"\ndone. rows updated: {written}, already current: {unchanged}, "
+                f"failed: {failed}"
+            )
+        )
         for name, count in sorted(per_field.items()):
-            self.stdout.write(f'  {name}: {count}')
+            self.stdout.write(f"  {name}: {count}")
         if dry_run:
-            self.stdout.write('(dry run — nothing was written)')
+            self.stdout.write("(dry run — nothing was written)")

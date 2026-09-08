@@ -1,24 +1,27 @@
-from django import forms
-from .models import Catalog, Genre
 from decimal import Decimal
 
+from django import forms
+
+from .models import Catalog, Genre
+
 RATING_CHOICES = [(Decimal(x) / 2, str(Decimal(x) / 2)) for x in range(0, 11)]
+
 
 class AddEntryForm(forms.Form):
     media_type = forms.ChoiceField(
         choices=Catalog.MediaType.choices,
-        label='Type',
+        label="Type",
     )
 
     title = forms.CharField(
         max_length=225,
-        label='Title',
+        label="Title",
     )
     genres = forms.ModelMultipleChoiceField(
         queryset=Genre.objects.all(),
         required=False,
         widget=forms.CheckboxSelectMultiple,
-        label='Genre',
+        label="Genre",
     )
 
     rating = forms.TypedChoiceField(
@@ -29,5 +32,5 @@ class AddEntryForm(forms.Form):
     review_text = forms.CharField(
         widget=forms.Textarea,
         required=False,
-        label='Review',
+        label="Review",
     )

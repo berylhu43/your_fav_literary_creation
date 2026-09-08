@@ -1,8 +1,11 @@
-from django import forms
-from .models import Review
 from decimal import Decimal
 
+from django import forms
+
+from .models import Review
+
 RATING_CHOICES = [(Decimal(x) / 2, str(Decimal(x) / 2)) for x in range(0, 11)]
+
 
 class ReviewForm(forms.ModelForm):
     rating = forms.TypedChoiceField(
@@ -12,7 +15,7 @@ class ReviewForm(forms.ModelForm):
 
     class Meta:
         model = Review
-        fields = ['rating', 'review_text']
+        fields = ["rating", "review_text"]
         widgets = {
-            'review_text': forms.Textarea(attrs={'rows':4}),
+            "review_text": forms.Textarea(attrs={"rows": 4}),
         }

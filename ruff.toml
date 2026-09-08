@@ -1,0 +1,9 @@
+extend-exclude = [
+    "*/migrations/*",
+    ".venv",
+]
+
+[lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+[lint.per-file-ignores]

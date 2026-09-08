@@ -9,6 +9,7 @@ __pycache__/
 # import data
 import_data/
 match_report.csv
+dump.json
 
 # cache
 .douban_import_cache/

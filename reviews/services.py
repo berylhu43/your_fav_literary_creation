@@ -1,5 +1,6 @@
 from .models import Review
 
+
 def upsert_review(*, user, catalog, rating, review_text):
     """
     Create the user's review for this catalog work, or update it if one already
@@ -9,8 +10,8 @@ def upsert_review(*, user, catalog, rating, review_text):
         user=user,
         catalog=catalog,
         defaults={
-            'rating': rating,
-            'review_text': review_text,
+            "rating": rating,
+            "review_text": review_text,
         },
     )
     return review
