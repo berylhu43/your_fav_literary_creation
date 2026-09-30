@@ -1,7 +1,7 @@
 # system
 .venv
 .env
-.envdb.sqlite3
+.DS_Store
 db.sqlite3
 __pycache__/
 *.pyc

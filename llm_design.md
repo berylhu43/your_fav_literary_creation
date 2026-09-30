@@ -130,9 +130,12 @@ The extract prompt passes the actual `Genre.name` values from the DB and instruc
 
 ### 4.8 Structured output via json_mode + defensive parsing
 
-`_llm_get` requests JSON-object mode; the parser wraps `json.loads` in `try/except` and falls back to an empty result.
+`_llm_get` requests JSON-object mode; the parser degrades to an empty result on anything it can't trust.
 
 **Why.** External output is untrusted — the same mindset as `_tmdb_get`'s error handling. json_mode makes the model return clean JSON (no markdown fences, no preamble), but the parser still degrades gracefully if a call misbehaves, so one bad response can't crash the page. (json_mode requires the word "json" to appear in the prompt — the prompts satisfy this in their output-format instruction.)
+
+**Defensive parsing means guarding the *shape*, not just the parse.** The first version wrapped `json.loads` in `try/except (JSONDecodeError, TypeError)`— which catches malformed JSON, `None`, and non-string input, but **not** valid JSON that isn't the expected object. A bare array, a scalar, or `null` parses successfully, then crashes on `.get()` with an `AttributeError` that falls outside the caught exceptions. Writing the parser's tests surfaced this (main doc §8.24); the fix is an explicit `isinstance(data, dict)` check before
+`.get()`.
 
 ---
 
@@ -199,5 +202,6 @@ Token usage is logged inside `_llm_get` (`resp.usage`), so both calls report pro
 | User taste store | ⬜ TODO ① |
 | Balanced sampling by media_type | ⬜ TODO ⑤ |
 | Loading state | ✅ Implemented |
+| `_parse` defensive-parsing tests + non-dict shape guard | ✅ Implemented |
 
 *Legend: ✅ implemented · 🚧 partial / in progress · ⬜ planned*

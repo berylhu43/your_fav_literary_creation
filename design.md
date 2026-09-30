@@ -361,6 +361,62 @@ The client is now built inside a function decorated with `@lru_cache(maxsize=1)`
  
 The general rule: **anything constructed at module scope becomes a hard dependency of importing that module.** External clients, connections, and anything else that can fail belong behind a function call.
 
+
+### 8.24 Test what is logic-dense and silently breakable, not everything
+
+This is a learning/portfolio project, so the goal of the test suite is not a
+coverage percentage but a lock on the highest-value, most-easily-broken logic.
+Two targets were chosen for the first pass:
+
+- **`get_or_create_work` de-duplication** — specifically the movie/TV
+  shared-id collision. De-duplication keys on `source` + `external_id`
+  (§8.12), but TMDB movie and TV ids occupy the *same* numeric space, so
+  `media_type` must be part of the filter or a movie silently matches a TV
+  row under `source=tmdb`. A test pins this edge case permanently, turning a
+  once-live bug into a regression guard.
+- **`_parse` (LLM output parser)** — a pure function (no DB, no network),
+  which makes it the highest-ROI target: it needs no mocks at all.
+
+**Mock boundary.** The external helpers (`_map_*`, `_add_*_credits`) are
+stubbed, so the tests never touch TMDB / Google Books. This keeps the test
+focused on what it actually verifies — the de-dup query and the persistence
+path — rather than on what the API returned. The boundary sits exactly at the
+§8.7 seam.
+
+**A real defect surfaced while writing the parse tests.** The parser guarded
+malformed JSON, `None`, and a missing key, but *valid-but-non-object* JSON —
+a bare array, a scalar, `null` — passed `json.loads` and then crashed on
+`.get()` with an `AttributeError`, which fell outside the caught exceptions.
+Fixed with an `isinstance(data, dict)` guard. (Parser-behaviour detail lives
+in llm_design.md; recorded here only as the motivating find.)
+
+**Rule applied:** test code that is both logic-dense and able to fail
+*silently*; skip what the framework already guarantees (e.g. `.create()`
+doesn't run validators, so validator tests would test Django, not our logic).
+
+### 8.25 CI runs tests against Postgres, not the dev SQLite
+
+The dev database is SQLite; production is Postgres (§8.19). The SQLite → RDS
+migration (§9 Stage 5) already proved SQLite silently tolerates values
+Postgres rejects — twenty `cover_url` rows exceeded a `VARCHAR` limit SQLite
+never enforced. Running CI tests on SQLite would reproduce *exactly* that
+blind spot. So the GitHub Actions job spins up a Postgres **service
+container** and points Django at it through the existing `DATABASE_HOST`
+switch (§8.19) — no code change, the same env-driven branch production uses.
+**CI mirrors production where mirroring is cheap.**
+
+**Lint (ruff), scoped deliberately.** Only `E` / `F` / `I` are enabled
+(real errors, unused imports, import order); migrations are excluded
+(generated code) and `E501` is off. The intent is a *high-signal* gate —
+catch undefined names and unused imports, not enforce stylistic opinions that
+would make the gate noisy and, eventually, ignored.
+
+**The gate.** Every push / PR runs lint + tests; a red check is meant to
+block merge (branch protection).
+
+**Rule applied:** a quality gate is only useful if it is trusted — tune it to
+near-zero false positives so that red always means "real problem."
+
 ---
 
 ## 9. Phased Delivery
@@ -448,6 +504,34 @@ ECR ──image──> ECS Express Mode (Fargate) ──> RDS PostgreSQL
 **IAM.** An IAM user with an access key for CLI work, plus two service roles created by Express Mode: `ecsTaskExecutionRole` (pull image, write logs) and `ecsInfrastructureRoleForExpressServices` (provision the ALB and friends). The distinction that finally landed: a **user** is a person's identity, a **role** is a service's. A third kind, the *task role*, is for the application calling AWS APIs — unused here, since Django talks to nothing in AWS but Postgres.
  
 Two IAM incidents worth remembering. A stale `aws_session_token` left in `~/.aws/credentials` from a course account made a brand-new access key fail with `InvalidClientTokenId` — long-term credentials (`AKIA…`) take two fields, temporary ones (`ASIA…`) take three, and `aws configure` overwrites only the fields it asks about. And the infrastructure role briefly lacked `ec2:DescribeAccountAttributes`, stalling provisioning with `AccessDenied` before resolving on its own.
+
+
+### Stage 6 — Automated testing & CI/CD — *in progress*
+
+Cross-cutting engineering work rather than a product feature, sequenced after
+the app was functionally complete.
+
+**Done:**
+- **Tests (pytest-django).** `get_or_create_work` de-dup incl. the movie/TV
+  id collision; `_parse` defensive parsing incl. the non-dict guard found
+  while writing the tests (§8.24). Mock boundary at the external client
+  helpers.
+- **CI (GitHub Actions).** Lint (ruff) + tests on every push / PR, with tests
+  run against a Postgres service container (§8.25). First green run confirmed
+  the Postgres path end-to-end.
+
+**Planned:**
+- **CD** — build → ECR → ECS *Force new deployment*, gated on CI. **Paired
+  with narrowing the CLI IAM user off `AdministratorAccess` (§12 #6):** CD
+  needs a scoped deploy identity, not admin. Credential delivery to GitHub
+  (long-lived access key in Secrets vs. OIDC federation) to be decided in that
+  phase.
+- **Note on teardown.** Paid resources (ECS, RDS) were torn down after Stage 5
+  and the image persists in ECR, so CD's "update ECS service" step has no live
+  target until the service is re-created. CD may therefore land as
+  build + push-to-ECR first, with the ECS-update step activated when the
+  service is next running.
+
 
 **Decisions & insights worth keeping:**
 
@@ -539,6 +623,13 @@ Two IAM incidents worth remembering. A stale `aws_session_token` left in `~/.aws
 | Frontend deployed to Amplify Hosting | ✅ Implemented |
 | CORS / CSRF configured for the Amplify origin | ✅ Implemented |
 | AWS budget alert | ✅ Implemented |
+| pytest-django test suite | ✅ Implemented |
+| `get_or_create_work` de-dup tests (incl. movie/TV id collision) | ✅ Implemented |
+| `_parse` defensive-parsing tests + non-dict guard fix | ✅ Implemented |
+| GitHub Actions CI — lint + tests on Postgres service container | ✅ Implemented |
+| ruff lint config (E/F/I, migrations excluded) | ✅ Implemented |
+| Branch protection requiring CI to pass | ⬜ Not yet |
+| CD pipeline (build → ECR → ECS, gated on CI) | ⬜ Not yet |
 
 *Legend: ✅ implemented · 🚧 in progress · ⬜ planned, not started · 📐 designed, not implemented · 💭 future / blocked on earlier stage*
 
@@ -559,6 +650,9 @@ Principles that guided the decisions above and should guide future ones:
 - **Fail fast on missing configuration.** A `KeyError` at startup beats a `None` that quietly corrupts behaviour for months. Applied to `DJANGO_SECRET_KEY` and the `DATABASE_*` group; deliberately *not* yet applied to the three API keys, which still use `.get`.
 - **Import time is not use time.** Anything built at module scope becomes a hard requirement of importing that module — and via the URL conf, of serving any request at all.
 - **Deploy the vertical slice before adding features.** Deployment surfaced problems no amount of local development would have: a schema violation SQLite had tolerated for months, an import-time coupling, three separate network boundaries. Each was cheap to fix on a small system.
+- **Test what breaks silently; trust the framework for the rest.** The first test pass targeted logic-dense, silently-failing code (id-space de-dup, defensive parsing) rather than chasing coverage. Writing the tests found a real defect, which is the point.
+- **A gate must be trusted to be useful.** CI runs on Postgres (mirroring
+production, not the dev SQLite) and lint is tuned to near-zero false positives, so a red check always means a real problem — never noise to be waved through.
 
 
 ## 12. Techinical Debt
@@ -573,7 +667,7 @@ Ordered roughly by how much each would hurt if ignored.
 | 3 | **`:latest` only** — no immutable tags, so there is nothing to roll back to and ECS caches stale digests. One deployment already failed with `CannotPullContainerError` on an orphaned digest. | Simplicity while learning. | Same session as #2 — switch to a git-SHA or timestamp tag plus `latest`. |
 | 4 | **`ALLOWED_HOSTS = *`** | The ALB health check sends the container's private IP as the `Host` header, which the real hostname list rejects. | Fix together with a `/health/` endpoint, which removes the reason. |
 | 5 | **No `/health/` endpoint** — probing `/admin/login/` renders a full template through the entire middleware chain. | Avoided a code change mid-deployment. | With #4. |
-| 6 | **`AdministratorAccess` on the CLI IAM user** | Getting stuck in permission errors would have buried the actual subject. | Now that the service list is known, narrow to ECR + ECS + RDS + EC2-describe. |
+| 6 | **`AdministratorAccess` on the CLI IAM user** | Getting stuck in permission errors would have buried the actual subject. | **The CD phase (§9 Stage 6) — it needs a scoped deploy identity, so narrowing to ECR + ECS + RDS + EC2-describe happens there rather than as standalone cleanup.** |
 | 7 | **RDS publicly accessible** (§8.22) | Avoids VPC-connector complexity; enables local `migrate`. | Only if the data stops being disposable. |
 | 8 | **`LocMemCache` is per-process** — 2 tasks × N workers = N independent caches, all lost on redeploy, so the 1-hour TMDB cache rarely hits. | Redis is a separate service. | When TMDB rate limits bite or the cache miss rate matters. |
 | 9 | **Email silenced** via `SILENCED_SYSTEM_CHECKS = ['mail.E001']` | No feature needs it yet. | Password reset, or anything else that sends mail. |
